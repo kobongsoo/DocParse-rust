@@ -1,0 +1,17 @@
+# DocParse-rust — 문서 → 본문 추출 라이브러리 (MpowerClassify 에서 떼어 낸 독립 프로젝트)
+#
+#   crates/docparse      본체(Rust 라이브러리). 형식별 파서·정제·압축 해제
+#   crates/docparse-ffi  C 진입점 → docparse.dll / libdocparse.so (다른 프로그램이 불러 쓰는 형태)
+#
+# 설계: MpowerClassify plan/Rust-문서파서-라이브러리분리-설계-20261110.html (개정 2)
+[workspace]
+members = ["crates/docparse", "crates/docparse-ffi"]
+resolver = "2"
+
+# 배포 라이브러리는 릴리스 빌드로 만든다. 패닉은 unwind 여야 C 경계에서 잡을 수 있다(abort 금지).
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+codegen-units = 1
+panic = "unwind"

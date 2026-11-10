@@ -1,0 +1,5 @@
+/target
+/dist
+*.pyc
+__pycache__/
+/scripts/server.env

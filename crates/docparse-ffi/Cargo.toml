@@ -1,0 +1,16 @@
+[package]
+name = "docparse-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "docparse 의 C 진입점 — docparse.dll / libdocparse.so. 옵션·결과는 UTF-8 JSON 으로 주고받는다."
+build = "build.rs"
+
+[lib]
+# 산출 파일 이름을 docparse.dll / libdocparse.so 로 맞춘다(크레이트 이름은 docparse-ffi).
+name = "docparse"
+crate-type = ["cdylib"]
+
+[dependencies]
+docparse = { path = "../docparse", features = ["archive", "synap"] }
+serde_json = "1"
+log = "0.4"

@@ -1,0 +1,37 @@
+[package]
+name = "docparse"
+version = "0.1.0"
+edition = "2021"
+description = "문서 → 본문 추출 라이브러리 (pdf·OOXML·hwpx·html·텍스트·구형 doc/ppt/xls/hwp + 압축 해제)."
+
+[features]
+# 압축 해제와 사이냅 외부 추출기는 기본으로 켠다. 필요 없는 프로젝트는
+# default-features = false 로 압축 크레이트 5개를 빼고 가볍게 쓴다.
+default = ["archive", "synap"]
+archive = ["dep:tar", "dep:bzip2-rs", "dep:lzma-rs", "dep:sevenz-rust2", "dep:rars"]
+synap = ["dep:getrandom"]
+
+[dependencies]
+regex = "1"
+unicode-normalization = "0.1"
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+# HWP5 섹션은 zlib 헤더 없는 raw deflate — zip 이 이미 끌어오는 crate 라 새 의존이 아니다.
+flate2 = "1"
+encoding_rs = "0.8"
+once_cell = "1"
+# 엑셀 날짜 서식 해석(xlsdate.rs) — 달력 계산만 쓴다(시계 기능 불필요).
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+pdfium-render = "0.8"
+# xlsx 시트 XML 을 흘려 읽기(SAX) 위한 순수 Rust 파서.
+quick-xml = { version = "0.42.0", default-features = false }
+# 로그는 표준 log 크레이트로만 남긴다 — 어디에 어떻게 적을지는 쓰는 프로그램이 정한다.
+log = "0.4"
+# 압축 해제(feature "archive") — 전부 순수 Rust 다. C 라이브러리를 끌어오면 "정적 단일
+# 바이너리" 목표가 깨지고 CentOS 7 빌드가 까다로워진다.
+tar = { version = "0.4", optional = true }
+bzip2-rs = { version = "0.1", optional = true }
+lzma-rs = { version = "0.3", optional = true }
+sevenz-rust2 = { version = "0.22.2", optional = true }
+rars = { version = "0.9.4", optional = true }
+# 사이냅 출력파일 이름의 난수(feature "synap").
+getrandom = { version = "0.3", optional = true }
