@@ -1,0 +1,2 @@
+# 시험 문서는 바이트 그대로 둔다 — 줄 끝(CRLF/LF)이 바뀌면 추출 결과가 OS 마다 달라진다
+tests/samples/** -text
