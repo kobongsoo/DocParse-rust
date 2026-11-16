@@ -10,6 +10,19 @@
 
 설계: MpowerClassify `plan/Rust-문서파서-라이브러리분리-설계-20261110.html` (개정 2)
 
+## 내려받기
+
+빌드한 배포 묶음은 GitHub 릴리스에 올립니다 → **[최신 릴리스](https://github.com/kobongsoo/DocParse-rust/releases/latest)** · [전체 릴리스 목록](https://github.com/kobongsoo/DocParse-rust/releases)
+
+현재 판 0.1.1:
+
+| 플랫폼 | 파일 |
+|---|---|
+| Windows x64 | [docparse-0.1.1-24fad68-windows-x64.zip](https://github.com/kobongsoo/DocParse-rust/releases/download/v0.1.1/docparse-0.1.1-24fad68-windows-x64.zip) |
+| Linux x64 (glibc 2.17+) | [docparse-0.1.1-24fad68-linux-x64.tgz](https://github.com/kobongsoo/DocParse-rust/releases/download/v0.1.1/docparse-0.1.1-24fad68-linux-x64.tgz) |
+
+풀어서 `lib/` 폴더를 그대로 쓰면 됩니다. 파일 확인은 묶음 안 `SHA256SUMS` 로 합니다.
+
 ## 구조
 
 ```
@@ -21,7 +34,7 @@ bindings/rust/docparse_dyn.rs libloading 감싸개 (libloading · serde_json)
 bindings/java/docparse/       JNA 감싸개 (Java 8+, jna 5.14+) + 작은 JSON 해석기
 bindings/php/DocParse.php     FFI 감싸개 (PHP 7.4+)
 examples/                 언어별 예제 (python · rust · java · php · c)
-doc/docparse-guide.html   언어별 적용 방법 설명서
+doc/docparse-라이브러리-연동설명서.html   언어별 적용 방법 설명서 (묶음 안: doc/docparse-guide.html)
 third_party/pdfium/       pdfium 정본 (묶음에 같이 넣는다)
 scripts/                  win-build.sh · linux-build.sh · package.py
 ```
