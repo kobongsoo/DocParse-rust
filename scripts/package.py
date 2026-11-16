@@ -39,7 +39,7 @@ EXTRAS = [
     ("php/DocParse.php", "bindings/php/DocParse.php"),
     ("php/example.php", "examples/php/example.php"),
     ("c/example.c", "examples/c/example.c"),
-    ("doc/docparse-guide.html", "doc/docpasrse-라이브러리-연동설명서.html"),
+    ("doc/docparse-guide.html", "doc/docparse-라이브러리-연동설명서.html"),
 ]
 
 # 저장소 안과 묶음 안에서 상대 위치가 달라지는 줄: (묶음 안 경로, 저장소 판 문자열, 묶음 판 문자열)
