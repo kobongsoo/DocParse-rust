@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "docparse"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bzip2-rs",
  "chrono",
@@ -321,7 +321,7 @@ dependencies = [
 
 [[package]]
 name = "docparse-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "docparse",
  "log",
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "docparse-ffi"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "docparse",
  "log",

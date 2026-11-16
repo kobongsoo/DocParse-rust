@@ -95,6 +95,11 @@ d=target/release/dp
 [ -f \$d ] || { echo "빌드 결과가 없습니다: \$d"; exit 1; }
 gd=\$(objdump -T \$d | grep -o 'GLIBC_[0-9.]*' | sort -t. -k2 -n -u | tail -1)
 echo "  dp 최고 요구 glibc: \$gd"
+# dp 가 Linux 에서 실제로 뜨고 같은 버전을 내는지 — 추출까지 한 건 해 본다
+\$d version | grep -q "$VERSION" || { echo "dp version 이 $VERSION 이 아닙니다: \$(\$d version)"; exit 1; }
+printf '문서파서 시험 본문입니다.\n' > dp_smoke.txt
+\$d extract dp_smoke.txt 2>/dev/null | grep -q "시험" || { echo "dp extract 실패"; exit 1; }
+echo "  \$(\$d version)"
 EOF
 
 step "받아 오기"

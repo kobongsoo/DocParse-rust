@@ -1,7 +1,7 @@
 [package]
 name = "docparse-cli"
 # 버전은 docparse-ffi 와 같게 둔다 — dp version 이 이 값을 라이브러리 버전으로 보여 준다.
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "dp.exe — docparse 시험 도구. DLL 과 같은 C 진입점 소스를 그대로 넣어 문서를 읽는다."
 # FFI 와 같은 빌드 스크립트 — 버전 문자열의 git 해시(DOCPARSE_GIT)를 똑같이 새긴다.
