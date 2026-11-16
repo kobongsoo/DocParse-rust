@@ -3,3 +3,6 @@
 *.pyc
 __pycache__/
 /scripts/server.env
+/examples/rust/target
+/examples/rust/Cargo.lock
+*.class

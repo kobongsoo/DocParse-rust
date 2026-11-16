@@ -1,0 +1,12 @@
+[package]
+name = "docparse-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# 이 저장소의 workspace 에 끼지 않는 독립 예제
+[workspace]
+
+[dependencies]
+libloading = "0.8"
+serde_json = "1"

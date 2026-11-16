@@ -1,6 +1,6 @@
 [package]
 name = "docparse"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "문서 → 본문 추출 라이브러리 (pdf·OOXML·hwpx·html·텍스트·구형 doc/ppt/xls/hwp + 압축 해제)."
 

@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docparse 사용 설명서</title>
+</head>
+<body>
+<style>
+  :root{
+    --bg:#f4f6f9; --surface:#ffffff; --surface-2:#eef1f6; --ink:#191d24;
+    --muted:#58616e; --faint:#8b94a2; --line:#dde2ea; --line-strong:#c7cfda;
+    --accent:#26437e; --accent-2:#365fb0; --accent-soft:#e7edf7;
+    --c:#cf3b2e; --c-soft:#fbeceb; --s:#b3760f; --s-soft:#f9f0dc; --o:#2f8f57; --o-soft:#e6f3ea;
+    --shadow:0 1px 2px rgba(20,30,50,.04), 0 8px 24px rgba(20,30,50,.06);
+    --sans:"Pretendard Variable",Pretendard,"Malgun Gothic","맑은 고딕",-apple-system,"Apple SD Gothic Neo",system-ui,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","Cascadia Mono",Consolas,"D2Coding",monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e1116; --surface:#161b22; --surface-2:#1d232c; --ink:#e7ebf1;
+      --muted:#9aa4b2; --faint:#6b7684; --line:#262d38; --line-strong:#333c49;
+      --accent:#7ea0e8; --accent-2:#8fb0f2; --accent-soft:#182233;
+      --c:#f2695c; --c-soft:#2a1715; --s:#e6a748; --s-soft:#271e10; --o:#57bd85; --o-soft:#122217;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f4f6f9; --surface:#ffffff; --surface-2:#eef1f6; --ink:#191d24;
+    --muted:#58616e; --faint:#8b94a2; --line:#dde2ea; --line-strong:#c7cfda;
+    --accent:#26437e; --accent-2:#365fb0; --accent-soft:#e7edf7;
+    --c:#cf3b2e; --c-soft:#fbeceb; --s:#b3760f; --s-soft:#f9f0dc; --o:#2f8f57; --o-soft:#e6f3ea;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1116; --surface:#161b22; --surface-2:#1d232c; --ink:#e7ebf1;
+    --muted:#9aa4b2; --faint:#6b7684; --line:#262d38; --line-strong:#333c49;
+    --accent:#7ea0e8; --accent-2:#8fb0f2; --accent-soft:#182233;
+    --c:#f2695c; --c-soft:#2a1715; --s:#e6a748; --s-soft:#271e10; --o:#57bd85; --o-soft:#122217;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.7;-webkit-font-smoothing:antialiased;font-size:16px;letter-spacing:-0.003em;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px 96px;}
+  header.doc{padding:56px 0 34px;border-bottom:1px solid var(--line);margin-bottom:40px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:600;display:flex;gap:10px;align-items:center;margin-bottom:20px;}
+  .eyebrow::before{content:"";width:26px;height:2px;background:var(--accent);border-radius:2px;}
+  h1.title{font-size:clamp(28px,4.6vw,44px);line-height:1.12;margin:0 0 14px;font-weight:800;
+    letter-spacing:-0.02em;text-wrap:balance;}
+  .lede{font-size:clamp(16px,2.1vw,19px);color:var(--muted);margin:0 0 22px;max-width:64ch;}
+  .lede b{color:var(--ink);font-weight:600;}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{font-size:12px;font-family:var(--mono);color:var(--muted);background:var(--surface);
+    border:1px solid var(--line);border-radius:999px;padding:5px 12px;}
+  .chip b{color:var(--ink);font-weight:600;}
+  section{margin:52px 0;scroll-margin-top:20px;}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;}
+  .sec-num{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);
+    border:1px solid var(--line-strong);border-radius:7px;padding:3px 9px;flex:none;line-height:1.3;}
+  h2{font-size:clamp(21px,3vw,27px);margin:0;font-weight:750;letter-spacing:-0.015em;line-height:1.25;}
+  h3{font-size:17px;margin:30px 0 12px;font-weight:700;letter-spacing:-0.01em;}
+  p{margin:0 0 15px;max-width:72ch;}
+  ul.plain{margin:0 0 15px;padding-left:20px;} ul.plain li{margin:5px 0;color:var(--muted);}
+  ul.plain li b{color:var(--ink);font-weight:600;}
+  ol.plain{margin:0 0 15px;padding-left:22px;} ol.plain li{margin:6px 0;color:var(--muted);}
+  ol.plain li b{color:var(--ink);font-weight:600;}
+  .tldr{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:12px;padding:22px 24px;box-shadow:var(--shadow);}
+  .tldr .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:10px;}
+  .tldr p{margin:0;font-size:17px;color:var(--ink);max-width:none;}
+  .tldr b{color:var(--accent-2);}
+  .twrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);margin:16px 0;}
+  table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px;background:var(--surface);}
+  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top;}
+  thead th{background:var(--surface-2);font-size:12px;letter-spacing:.03em;color:var(--muted);
+    text-transform:uppercase;font-weight:700;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.mono,.mono-cell{font-family:var(--mono);font-size:13px;white-space:nowrap;}
+  code.inl{font-family:var(--mono);font-size:.9em;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px;}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;
+    overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.65;box-shadow:var(--shadow);color:var(--ink);}
+  pre .cm{color:var(--o);} pre .kw{color:var(--accent-2);font-weight:600;} pre .hi{color:var(--c);font-weight:600;}
+  .note{border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:16px 18px;
+    font-size:14.5px;display:flex;gap:12px;align-items:flex-start;margin:16px 0;}
+  .note .badge{font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.06em;
+    padding:3px 8px;border-radius:6px;flex:none;text-transform:uppercase;white-space:nowrap;}
+  .note.safe .badge{color:var(--o);background:var(--o-soft);border:1px solid color-mix(in srgb,var(--o) 35%,transparent);}
+  .note.warn .badge{color:var(--s);background:var(--s-soft);border:1px solid color-mix(in srgb,var(--s) 35%,transparent);}
+  .note.bad .badge{color:var(--c);background:var(--c-soft);border:1px solid color-mix(in srgb,var(--c) 35%,transparent);}
+  .note.info .badge{color:var(--accent-2);background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent-2) 35%,transparent);}
+  .note p{margin:0;color:var(--muted);max-width:none;}
+  .note b{color:var(--ink);}
+  .x{color:var(--c);font-weight:700}
+  .ok{color:var(--o);font-weight:700}
+  .wn{color:var(--s);font-weight:700}
+  .src{font-family:var(--mono);font-size:12px;color:var(--faint);}
+  .fig{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
+    padding:18px;margin:16px 0;overflow-x:auto;}
+  .fig svg{display:block;min-width:680px;width:100%;height:auto;}
+  .fig text{font-family:var(--sans);fill:var(--ink);font-size:13px;}
+  .fig .t-mono{font-family:var(--mono);font-size:11.5px;fill:var(--muted);}
+  .fig .t-h{font-weight:700;font-size:14px;}
+  .fig .box{fill:var(--surface-2);stroke:var(--line-strong);}
+  .fig .box-a{fill:var(--accent-soft);stroke:var(--accent-2);}
+  .fig .ln{stroke:var(--muted);stroke-width:1.4;fill:none;}
+  .fig .ln-d{stroke:var(--faint);stroke-width:1.2;fill:none;stroke-dasharray:5 4;}
+  .fig .ah{fill:var(--muted);}
+  footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);
+    font-size:13px;color:var(--faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+    font-family:var(--mono);letter-spacing:.02em;}
+  @media print{ body{background:#fff;} .tldr,pre,.twrap,.fig{box-shadow:none;} }
+  .warn{color:var(--s);font-weight:700}
+  nav.toc{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px;
+    box-shadow:var(--shadow);margin:28px 0 0;font-size:14.5px;}
+  nav.toc .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:8px;}
+  nav.toc ol{margin:0;padding-left:20px;columns:2;column-gap:28px;} nav.toc li{margin:3px 0;break-inside:avoid;}
+  nav.toc a{color:var(--ink);text-decoration:none;} nav.toc a:hover{color:var(--accent-2);text-decoration:underline;}
+  pre .fn{color:var(--faint);font-size:11.5px;display:block;margin:-4px 0 8px;letter-spacing:.02em;}
+  .steps{counter-reset:st;margin:0 0 15px;padding:0;list-style:none;}
+  .steps li{counter-increment:st;position:relative;padding:2px 0 8px 38px;color:var(--muted);}
+  .steps li::before{content:counter(st);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;
+    background:var(--accent-soft);color:var(--accent-2);font:700 12.5px/24px var(--mono);text-align:center;}
+  .steps li b{color:var(--ink);}
+  a{color:var(--accent-2);}
+  code.inl{overflow-wrap:anywhere;} .note p,.note{min-width:0;}
+  td:first-child code.inl{white-space:nowrap;overflow-wrap:normal;}
+  @media (max-width:640px){ nav.toc ol{columns:1;} .wrap{padding:0 16px 72px;} }
+</style>
+<div class="wrap">
+<header class="doc">
+  <div class="eyebrow">DocParse-rust · 사용 설명서</div>
+  <h1 class="title">docparse 라이브러리를 언어별로 붙이는 법</h1>
+  <p class="lede">Python · Rust · C/C++ · Java · PHP 에서 <b>docparse.dll / libdocparse.so</b> 를 불러 문서 본문을 뽑는 과정을,
+  실제로 돌려 본 예제 코드와 함께 단계별로 정리했다.</p>
+  <div class="meta">
+    <span class="chip">라이브러리 <b>0.1.0+b9704d2</b></span>
+    <span class="chip">ABI <b>1</b></span>
+    <span class="chip">Windows x64 · Linux x64 (glibc 2.17+)</span>
+    <span class="chip">작성 <b>2026-11-11</b></span>
+  </div>
+  <nav class="toc"><div class="k">차례</div><ol start="0"><li><a href="#tldr">한눈에</a></li><li><a href="#bundle">배포 묶음 구성</a></li><li><a href="#common">공통 규칙</a></li><li><a href="#python">Python</a></li><li><a href="#rust">Rust</a></li><li><a href="#deploy">라이브러리 찾는 순서</a></li><li><a href="#c">C / C++</a></li><li><a href="#java">Java</a></li><li><a href="#php">PHP</a></li><li><a href="#others">그 밖의 언어</a></li><li><a href="#trouble">문제가 생기면</a></li><li><a href="#ref">C 함수 11개</a></li></ol></nav>
+</header>
+<section id="tldr"><div class="sec-head"><span class="sec-num">0</span><h2>한눈에</h2></div>
+<div class="tldr"><div class="k">요약</div>
+<p>docparse 는 <b>문서 → 본문 텍스트</b>를 뽑는 공유 라이브러리(Windows <code class="inl">docparse.dll</code>, Linux <code class="inl">libdocparse.so</code>)다.
+함수 11개를 C 모양으로 내놓고 <b>옵션과 결과는 UTF-8 JSON</b> 으로 주고받는다. 그래서 C 를 부를 수 있는 언어라면 어디서나 쓸 수 있다.
+배포 묶음의 <b><code class="inl">lib/</code> 두 파일은 어느 언어든 항상</b> 가져가고, 언어에 맞는 폴더 하나(<code class="inl">python/</code>·<code class="inl">rust/</code>·<code class="inl">java/</code>·<code class="inl">php/</code>·<code class="inl">include/</code>+<code class="inl">c/</code>)를 더한다.</p></div>
+<div class="twrap"><table><thead><tr><th>쓰는 쪽</th><th>가져갈 것 (lib/ 는 공통)</th><th>추가 의존</th><th>최소 판</th><th>이 문서 작성 때 시험</th></tr></thead><tbody><tr><td><b>Python</b></td><td><code class="inl">python/docparse.py</code></td><td>없음(표준 ctypes)</td><td>3.6</td><td><span class="ok">Windows</span> · MpowerClassify 로 Linux</td></tr><tr><td><b>Rust</b></td><td><code class="inl">rust/docparse_dyn.rs</code></td><td><code class="inl">libloading 0.8</code> · <code class="inl">serde_json 1</code></td><td>1.70 (2021 edition)</td><td><span class="ok">Windows</span> · MpowerClassify 로 Linux</td></tr><tr><td><b>C / C++</b></td><td><code class="inl">include/docparse.h</code> + <code class="inl">lib/docparse.lib</code>(Windows)</td><td>없음</td><td>C99 · MSVC 2019+ · gcc 4.8+</td><td><span class="ok">Windows(MSVC) · Linux(gcc 4.8.5)</span></td></tr><tr><td><b>Java</b></td><td><code class="inl">java/docparse/*.java</code></td><td><code class="inl">net.java.dev.jna:jna 5.14.0+</code></td><td>Java 8</td><td><span class="ok">Windows(21) · Linux(8)</span></td></tr><tr><td><b>PHP</b></td><td><code class="inl">php/DocParse.php</code></td><td>FFI 확장(기본 내장)</td><td>7.4</td><td><span class="wn">실행 시험 못 함</span>(§8)</td></tr><tr><td>C#·Go·Node 등</td><td><code class="inl">include/docparse.h</code> 를 보고 선언</td><td>그 언어의 FFI</td><td>—</td><td>예제 없음(§9)</td></tr></tbody></table></div>
+</section><section id="bundle"><div class="sec-head"><span class="sec-num">1</span><h2>배포 묶음 구성</h2></div>
+<p>DocParse-rust 저장소에서 <code class="inl">scripts/win-build.sh</code>·<code class="inl">scripts/linux-build.sh</code> 로 만들면
+<code class="inl">dist/docparse-&lt;버전&gt;-windows-x64.zip</code> · <code class="inl">…-linux-x64.tgz</code> 가 나온다. 푼 모양은 아래와 같다.</p>
+<pre>docparse-0.1.0-b9704d2-windows-x64/
+├─ lib/
+│  ├─ docparse.dll        ← 본체 (Linux: libdocparse.so)
+│  ├─ pdfium.dll          ← PDF 엔진. 반드시 docparse 와 같은 폴더 (Linux: libpdfium.so)
+│  └─ docparse.lib        ← Windows 전용. C/C++ 가 빌드할 때 링크하는 &#x27;가져오기 라이브러리&#x27;
+├─ include/docparse.h     ← C 헤더 = 모든 언어의 기준 설명서
+├─ python/  docparse.py · example.py
+├─ rust/    docparse_dyn.rs · example/(Cargo.toml, src/main.rs)
+├─ java/    docparse/DocParse.java · docparse/Json.java · Example.java
+├─ php/     DocParse.php · example.php
+├─ c/       example.c
+├─ doc/     docparse-guide.html   ← 이 문서
+├─ VERSION · CHANGELOG.md · README.md
+└─ SHA256SUMS             ← 받은 파일이 온전한지 확인용</pre>
+<div class="note info"><span class="badge">docparse.lib 는 정적 라이브러리가 아니다</span><p>MSVC 가 DLL 을 만들 때 함께 내는 <b>가져오기 라이브러리(import library)</b>다. 안에 코드가 없고 'docparse.dll 의 이 함수를 쓴다'는 목록만 있다. 그래서 C/C++ 프로그램을 링크할 때만 쓰고, <b>실행할 때는 여전히 docparse.dll · pdfium.dll 이 옆에 있어야 한다</b>. Linux 는 .so 를 바로 링크하므로 이 파일이 없다.</p></div>
+<pre># 받은 묶음이 온전한지 확인 (Git Bash · Linux)
+cd docparse-0.1.0-b9704d2-windows-x64 &amp;&amp; sha256sum -c SHA256SUMS</pre>
+</section><section id="common"><div class="sec-head"><span class="sec-num">2</span><h2>모든 언어에 공통인 규칙</h2></div>
+<h3>2-1. 라이브러리 두 파일은 같은 폴더에</h3>
+<p>docparse 는 <b>자기 파일이 있는 폴더</b>에서 pdfium 을 먼저 찾고, 없으면 실행파일 폴더 → 시스템 경로 순으로 찾는다.
+그래서 <code class="inl">docparse.dll</code> 과 <code class="inl">pdfium.dll</code> 을 한 폴더에 두기만 하면 Python(python.exe)·Java(java.exe)·PHP(php.exe)처럼
+실행파일이 다른 곳에 있어도 잘 찾는다. pdfium 을 못 찾으면 다른 형식은 그대로 되고 <b>PDF 만 <code class="inl">failed</code> 로 실패</b>한다.
+옵션 <code class="inl">&quot;pdfium_lib&quot;</code> 으로 위치를 직접 줄 수도 있다.</p>
+
+<h3>2-2. 문자열은 전부 UTF-8</h3>
+<p>경로·옵션·결과 모두 널 종료 UTF-8 이다. Python·Rust·Java·PHP 감싸개는 알아서 맞춰 준다.
+<b>C 로 Windows 프로그램을 짤 때만 조심</b>해야 한다. <code class="inl">main(argc, argv)</code> 의 <code class="inl">argv</code> 는 CP949 로 들어오므로
+그대로 넘기면 한글 경로가 <code class="inl">DP_ERR_ARG</code> 로 실패한다(§6-3).</p>
+
+<h3>2-3. 받은 문자열은 docparse_free 로 돌려준다</h3>
+<p><code class="inl">char** out</code> 으로 받은 결과는 <b>성공이든 실패든</b> <code class="inl">docparse_free(out)</code> 로 해제한다. C 의 <code class="inl">free()</code> 는 쓰면 안 된다(할당기가 다르다).
+<code class="inl">docparse_version()</code>·<code class="inl">docparse_detect</code> 의 형식 이름처럼 <code class="inl">const char*</code> 로 받는 것은 고정 문자열이라 해제하지 않는다.
+감싸개들은 이 일을 대신 해 준다.</p>
+
+<h3>2-4. 반환 코드</h3>
+<div class="twrap"><table><thead><tr><th>코드</th><th>이름</th><th>뜻</th><th>감싸개에서</th></tr></thead><tbody><tr><td>0</td><td><code class="inl">DP_OK</code></td><td>성공</td><td>값을 돌려줌</td></tr><tr><td>1</td><td><code class="inl">DP_ERR_ARG</code></td><td>NULL·잘못된 UTF-8·옵션 JSON 오류</td><td>kind = arg</td></tr><tr><td>2</td><td><code class="inl">DP_ERR_NOT_FOUND</code></td><td>파일이 없음</td><td>Java·PHP: kind = not_found / Python·Rust: unsupported·failed 그대로</td></tr><tr><td>3</td><td><code class="inl">DP_ERR_SIZE_LIMIT</code></td><td>크기 상한 초과 — 깨진 파일과 구분해 '처리 제외'로 다룬다</td><td>SizeLimit 전용 예외</td></tr><tr><td>4</td><td><code class="inl">DP_ERR_UNSUPPORTED</code></td><td>지원하지 않는 형식(이미지 등)</td><td>kind = unsupported</td></tr><tr><td>5</td><td><code class="inl">DP_ERR_FAILED</code></td><td>파싱 실패(깨진 파일·암호 등)</td><td>kind = failed</td></tr><tr><td>99</td><td><code class="inl">DP_ERR_PANIC</code></td><td>라이브러리 내부 오류(버그). 메시지 첨부</td><td>kind = panic</td></tr></tbody></table></div>
+
+<h3>2-5. 옵션 JSON — 빠진 키는 기본값</h3><div class="note info"><span class="badge">옵션은 파일이 아니라 인자</span><p>옵션은 설정 파일이 아니라 <b>함수를 부를 때마다 넘기는 JSON 문자열 인자</b>다(예: <code class="inl">docparse_extract(path, opts_json, &amp;out)</code> 의 두 번째 인자). 라이브러리는 설정 파일이나 환경변수를 읽지 않는다. 그래서 호출마다 다르게 줄 수 있고, <b>바꿀 키만</b> 넣으면 나머지는 기본값이다. NULL(또는 빈 문자열)이면 전부 기본값. 넘기는 예시는 아래 §2-5 끝에 있다.</p></div>
+<pre><span class="fn">docparse_extract · docparse_check_size 옵션</span>{
+  &quot;clean&quot;: true,                    // false = 정제 전 원시 텍스트
+  &quot;engine&quot;: &quot;builtin&quot;,              // &quot;builtin&quot; | &quot;synap_fallback&quot; | &quot;synap_only&quot;
+  &quot;synap_exe&quot;: null,                // engine 이 synap_* 일 때 snf_exe 경로
+  &quot;pdfium_lib&quot;: null,               // null = docparse 폴더 → 실행파일 폴더 → 시스템
+  &quot;label&quot;: null,                    // 로그에 적을 문서 이름
+  &quot;fmt&quot;: null,                      // 주면 감지를 건너뛰고 그 형식으로
+  &quot;limits&quot;: {
+    &quot;parser_timeout_secs&quot;: 60,      // 문서 하나 시간 상한
+    &quot;max_pdf_pages&quot;: 3000,          // PDF 쪽수 상한(넘으면 앞부분만 → partial)
+    &quot;max_file_bytes&quot;: 104857600,    // 파일 크기 상한(100MB)
+    &quot;max_file_bytes_text&quot;: 104857600,
+    &quot;snf_timeout_secs&quot;: 60,
+    &quot;min_text_len&quot;: 20
+  }
+}
+// 상한: 키가 없으면 기본값, null 이나 0 이하면 &#x27;상한 없음&#x27;</pre>
+<p>각 키의 뜻은 아래와 같다.</p><div class="twrap"><table><thead><tr><th>키</th><th>형식</th><th>기본값</th><th>설명</th></tr></thead><tbody><tr><td><code class="inl">clean</code></td><td>bool</td><td><code class="inl">true</code></td><td>true 면 뽑은 본문을 6단계로 정제한다: ① 한글 자모를 완성형(NFC)으로 통일 ② 페이지 표식 줄 제거 ③ 제어문자 제거(탭·개행은 남김) ④ CR+LF·CR 을 LF 로 통일 ⑤ 줄 안 연속 공백(탭 포함)을 하나로, 줄 끝 공백 제거 ⑥ 빈 줄 3줄 이상을 2줄로. 양끝 공백도 지운다. false 면 파서가 뽑은 원시 텍스트 그대로다. <b>Python 감싸개만 기본이 False</b>(아래 상자).</td></tr><tr><td><code class="inl">engine</code></td><td>문자열</td><td><code class="inl">&quot;builtin&quot;</code></td><td><code class="inl">&quot;builtin&quot;</code>: 자체 파서만 쓴다.<br><code class="inl">&quot;synap_fallback&quot;</code>: 자체 파서로 먼저 읽고, 실패·빈 결과·짧은 결과(공백 뺀 글자 수가 <code class="inl">min_text_len</code> 미만)면 사이냅으로 다시 읽는다. 자체 파서가 없는 형식은 처음부터 사이냅.<br><code class="inl">&quot;synap_only&quot;</code>: 모든 문서를 사이냅으로만 읽는다.<br>모르는 값이면 <code class="inl">DP_ERR_ARG</code>.</td></tr><tr><td><code class="inl">synap_exe</code></td><td>문자열(경로)</td><td><code class="inl">null</code></td><td>사이냅 <code class="inl">snf_exe</code> 실행파일 경로. engine 이 <code class="inl">synap_*</code> 일 때 <b>반드시</b> 줘야 한다(없으면 <code class="inl">DP_ERR_ARG</code>). builtin 이면 무시.</td></tr><tr><td><code class="inl">pdfium_lib</code></td><td>문자열(경로)</td><td><code class="inl">null</code></td><td>pdfium 라이브러리 파일 경로. null 이면 docparse 라이브러리가 있는 폴더 → 실행파일 폴더 → 시스템 경로 순으로 찾는다. 못 찾으면 PDF 만 <code class="inl">failed</code>.</td></tr><tr><td><code class="inl">label</code></td><td>문자열</td><td><code class="inl">null</code></td><td>로그 한 줄 안에서 <b>경로 대신 표시할 문서 이름</b>이다. <b>로그 파일 이름이 아니다</b>(docparse 는 로그 파일을 쓰지 않고 <code class="inl">docparse_set_logger</code> 콜백에 줄만 넘긴다). 결과(본문)에는 영향이 없다.<br>null 이면 파싱한 파일 경로가 그대로 들어가므로 <b>보통은 비워 둔다</b>. 압축에서 풀린 문서만 실제 경로가 <code class="inl">C:\Temp\docparse-…\a1</code> 같은 임시 이름이라 무슨 문서인지 알 수 없으므로, expand 결과의 <code class="inl">jobs[].label</code>(예: <code class="inl">&quot;자료.zip/test.hwp&quot;</code>)을 그대로 넘긴다.</td></tr><tr><td><code class="inl">fmt</code></td><td>문자열</td><td><code class="inl">null</code></td><td>형식을 직접 정한다. 주면 내용 감지를 건너뛰고 그 파서로 읽는다. 값은 <code class="inl">docparse_detect</code> 와 같은 철자(pdf · hwp · hwpx · doc · docx · xls · xlsx · ppt · pptx · html · text 등)이고, 모르는 이름이면 <code class="inl">DP_ERR_ARG</code>. 보통은 비워 두고 감지에 맡긴다. <code class="inl">docparse_check_size</code> 에서는 이 키 대신 함수의 <code class="inl">fmt</code> 인자를 쓴다.</td></tr><tr><td><code class="inl">limits</code></td><td>객체</td><td>아래 표</td><td>크기·시간·분량 상한 묶음. 키를 빼면 그 상한만 기본값이다.</td></tr></tbody></table></div><div class="twrap"><table><thead><tr><th>limits 의 키</th><th>단위</th><th>기본값</th><th>설명</th><th>0 이하·null 이면</th></tr></thead><tbody><tr><td><code class="inl">parser_timeout_secs</code></td><td>초(소수 가능)</td><td><code class="inl">60</code></td><td>문서 하나를 읽는 시간 상한. PDF 쪽·HWPX 구역·PPTX 슬라이드·XLSX 시트를 도는 동안 확인하고, 넘으면 거기까지 읽은 앞부분만 돌려준다(<code class="inl">partial</code> 에 표시).</td><td>시간 상한 없음</td></tr><tr><td><code class="inl">max_pdf_pages</code></td><td>쪽</td><td><code class="inl">3000</code></td><td>PDF 를 읽을 최대 쪽수. 넘으면 앞에서 그만큼만 읽고 <code class="inl">partial</code> 에 <code class="inl">&quot;페이지 상한(3000p)&quot;</code> 이 남는다.</td><td>쪽수 상한 없음</td></tr><tr><td><code class="inl">max_file_bytes</code></td><td>바이트</td><td><code class="inl">104857600</code>(100MB)</td><td>읽기 전에 파일 크기를 본다. 텍스트·HTML 이 아닌 모든 형식에 적용된다. 넘으면 열지도 않고 <code class="inl">DP_ERR_SIZE_LIMIT</code>(3).</td><td>크기 상한 없음</td></tr><tr><td><code class="inl">max_file_bytes_text</code></td><td>바이트</td><td><code class="inl">104857600</code>(100MB)</td><td>텍스트·HTML 형식에만 적용되는 크기 상한. 텍스트는 바이트 수가 곧 본문 글자 수라 따로 둔다. 걸리면 결과의 <code class="inl">text_kind</code> 가 true.</td><td>크기 상한 없음</td></tr><tr><td><code class="inl">snf_timeout_secs</code></td><td>초</td><td><code class="inl">60</code></td><td>사이냅 <code class="inl">snf_exe</code> 한 건의 제한 시간. engine 이 builtin 이면 쓰지 않는다.</td><td><b>기본값 60 을 쓴다</b>(상한 없음이 없다)</td></tr><tr><td><code class="inl">min_text_len</code></td><td>글자(공백 제외)</td><td><code class="inl">20</code></td><td>synap_fallback 에서 '짧은 결과' 기준. 자체 파서 결과가 이보다 짧으면 사이냅으로 다시 읽어 보고, 사이냅도 못 읽으면 짧은 결과를 그대로 쓴다. 상한이 아니라 판정 기준이다.</td><td>0 이면 짧은 결과로 보지 않음. null·음수는 기본값 20</td></tr></tbody></table></div><div class="note info"><span class="badge">값 규칙</span><p>옵션 JSON 자체를 NULL 로 넘기면 전부 기본값이다. <b>모르는 키는 무시</b>하므로 새 판에 생긴 옵션을 옛 라이브러리에 넘겨도 깨지지 않는다. 상한 키는 <b>빼면 기본값, null·0·음수면 상한 없음</b>이다(snf_timeout_secs·min_text_len 은 예외, 위 표). <b>주의</b>: 상한 키(parser_timeout_secs · max_pdf_pages · max_file_bytes · max_file_bytes_text)에 숫자가 아닌 값(예: <code class="inl">&quot;100&quot;</code> 문자열)을 넣으면 <b>상한 없음</b>이 된다. 나머지 키는 형식이 틀리면 기본값을 쓴다. 옵션이 JSON 객체가 아니거나 깨졌으면 <code class="inl">DP_ERR_ARG</code>.</p></div><p id="opts-pass"><b>옵션 넘기는 예시</b> — 같은 설정(정제함 · PDF 500쪽까지 · 파서 시간 30초)을 언어별로 넘기면 아래와 같다. 감싸개를 쓰면 JSON 을 직접 만들 필요 없이 그 언어의 보통 값으로 넘기고, 감싸개가 JSON 으로 바꿔 준다.</p><pre><span class="fn">C / C++ — JSON 문자열을 그대로</span>char* out = NULL;
+/* 바꿀 키만 넣는다 */
+int code = docparse_extract(&quot;보고서.pdf&quot;,
+    &quot;{\&quot;clean\&quot;:true,\&quot;limits\&quot;:{\&quot;max_pdf_pages\&quot;:500,\&quot;parser_timeout_secs\&quot;:30}}&quot;, &amp;out);
+docparse_free(out);
+
+/* NULL 이면 전부 기본값 */
+code = docparse_extract(&quot;보고서.hwp&quot;, NULL, &amp;out);
+docparse_free(out);
+
+/* 크기 검사도 같은 모양의 옵션(limits 만 본다) */
+code = docparse_check_size(&quot;큰파일.pdf&quot;, NULL, &quot;{\&quot;limits\&quot;:{\&quot;max_file_bytes\&quot;:52428800}}&quot;, &amp;out);
+docparse_free(out);</pre><pre><span class="fn">Python — 키워드 인자 (감싸개가 JSON 으로 바꿈. limits 의 키도 평평하게: parser_timeout · max_pdf_pages · max_file_bytes …)</span>r = docparse.extract(&quot;보고서.pdf&quot;, clean=True, max_pdf_pages=500, parser_timeout=30)
+r = docparse.extract(&quot;보고서.hwp&quot;)                       # 아무것도 안 주면 기본값(단 clean=False)
+r = docparse.extract(src, clean=True, label=label)      # 압축에서 풀린 문서: label 로 원래 이름
+r = docparse.extract(&quot;x.pdf&quot;, engine=&quot;synap_fallback&quot;, synap_exe=r&quot;C:\synap\snf_exe.exe&quot;)</pre><pre><span class="fn">Rust — serde_json 의 json! 매크로</span>use serde_json::json;
+let r = dp.extract(Path::new(&quot;보고서.pdf&quot;),
+                   &amp;json!({&quot;clean&quot;: true, &quot;limits&quot;: {&quot;max_pdf_pages&quot;: 500, &quot;parser_timeout_secs&quot;: 30}}))?;
+let r = dp.extract(Path::new(&quot;보고서.hwp&quot;), &amp;json!({}))?;     // 빈 객체 = 전부 기본값</pre><pre><span class="fn">Java — JSON 문자열 (문자열 안의 &quot; 는 \&quot; 로)</span>DocParse.Extracted r = dp.extract(&quot;보고서.pdf&quot;,
+        &quot;{\&quot;clean\&quot;:true,\&quot;limits\&quot;:{\&quot;max_pdf_pages\&quot;:500,\&quot;parser_timeout_secs\&quot;:30}}&quot;);
+DocParse.Extracted d = dp.extract(&quot;보고서.hwp&quot;);                 // 옵션 없음 = 전부 기본값
+
+// Jackson 을 쓰는 프로젝트라면 Map 으로 만들어 문자열로 바꿔도 된다
+Map&lt;String, Object&gt; limits = new HashMap&lt;&gt;();
+limits.put(&quot;max_pdf_pages&quot;, 500);
+Map&lt;String, Object&gt; opts = new HashMap&lt;&gt;();
+opts.put(&quot;clean&quot;, true);
+opts.put(&quot;limits&quot;, limits);
+DocParse.Extracted j = dp.extract(&quot;보고서.pdf&quot;, new ObjectMapper().writeValueAsString(opts));</pre><pre><span class="fn">PHP — 연관 배열 (감싸개가 json_encode)</span>$r = $dp-&gt;extract(&#x27;보고서.pdf&#x27;, [&#x27;clean&#x27; =&gt; true, &#x27;limits&#x27; =&gt; [&#x27;max_pdf_pages&#x27; =&gt; 500, &#x27;parser_timeout_secs&#x27; =&gt; 30]]);
+$r = $dp-&gt;extract(&#x27;보고서.hwp&#x27;);                                // null = 전부 기본값</pre><p><b>설정 파일로 관리하고 싶다면</b> 그 일은 부르는 프로그램이 한다. 자기 설정(파일·명령줄 인자·환경변수)을 읽어 옵션을 만들어 넘기면 된다. 옵션 JSON 과 같은 모양의 파일을 두었다면 내용을 읽어 그대로 넘겨도 된다. MpowerClassify 는 명령줄 인자(<code class="inl">--max-pdf-pages</code>·<code class="inl">--parser-timeout</code> 등)를 읽어 매 호출마다 옵션을 만든다.</p><pre><span class="fn">docparse-opts.json (예 — 이름·위치는 프로그램 마음대로)</span>{ &quot;clean&quot;: true, &quot;limits&quot;: { &quot;max_pdf_pages&quot;: 500, &quot;parser_timeout_secs&quot;: 30 } }</pre><pre><span class="fn">설정 파일을 읽어 넘기기</span>opts = open(&quot;docparse-opts.json&quot;, encoding=&quot;utf-8&quot;).read()     # 문자열 그대로
+# C: docparse_extract(path, opts, &amp;out) / Java: dp.extract(path, opts) / Rust: serde_json::from_str(&amp;opts)?</pre><div class="note warn"><span class="badge">Python 만 기본이 다르다</span><p>C·Rust·Java·PHP 는 <code class="inl">clean</code> 을 빼면 라이브러리 기본값(<b>true</b>)이다. Python 감싸개의 <code class="inl">extract(clean=False)</code> 는 예전 PyO3 모듈과 맞추려고 <b>기본이 False</b> 다. 정제된 본문이 필요하면 Python 에서는 꼭 clean=True 를 준다.</p></div>
+
+<h3>2-6. 결과 JSON</h3>
+<pre>성공: { &quot;text&quot;: &quot;본문…&quot;, &quot;engine&quot;: &quot;docx&quot;, &quot;fmt&quot;: &quot;docx&quot;,
+        &quot;partial&quot;: null | {&quot;reason&quot;:&quot;…&quot;,&quot;unit&quot;:&quot;pages&quot;,&quot;read&quot;:120,&quot;total&quot;:800},
+        &quot;layout&quot;:  null | {&quot;pages&quot;:800,&quot;scan_pages&quot;:3} }
+실패: { &quot;error&quot;: { &quot;kind&quot;: &quot;size_limit&quot;|&quot;unsupported&quot;|&quot;failed&quot;|&quot;arg&quot;|&quot;panic&quot;,
+                   &quot;message&quot;: &quot;사람이 읽는 사유&quot;, ... } }</pre>
+
+<p><b>성공</b>했을 때(반환 코드 0) 최상위 키:</p><div class="twrap"><table><thead><tr><th>키</th><th>형식</th><th>설명</th></tr></thead><tbody><tr><td><code class="inl">text</code></td><td>문자열</td><td>뽑은 본문. <code class="inl">clean</code> 이 true 면 정제한 뒤다. 본문이 없는 문서(빈 파일 등)는 빈 문자열일 수 있다.</td></tr><tr><td><code class="inl">engine</code></td><td>문자열</td><td>실제로 본문을 뽑은 파서 이름. 자체 파서면 형식 이름(<code class="inl">&quot;docx&quot;</code>·<code class="inl">&quot;pdf&quot;</code>·<code class="inl">&quot;hwp&quot;</code> …), 사이냅이 읽었으면 <code class="inl">&quot;snf&quot;</code>. synap_fallback 에서 <code class="inl">fmt</code> 와 <code class="inl">engine</code> 이 다르면 폴백이 일어난 것이다.</td></tr><tr><td><code class="inl">fmt</code></td><td>문자열</td><td>내용으로 감지한 형식(옵션 <code class="inl">fmt</code> 를 줬으면 그 값). pdf · hwp · hwpx · doc · docx · xls · xlsx · ppt · pptx · html · text.</td></tr><tr><td><code class="inl">partial</code></td><td>객체 | null</td><td>상한에 걸려 <b>앞부분만 읽었을 때만</b> 객체, 끝까지 읽었으면 null. 아래 표.</td></tr><tr><td><code class="inl">layout</code></td><td>객체 | null</td><td><b>PDF 일 때만</b> 객체, 그 밖의 형식은 null. 아래 표.</td></tr></tbody></table></div><p>partial · layout 안의 키:</p><div class="twrap"><table><thead><tr><th>안의 키</th><th>형식</th><th>설명</th></tr></thead><tbody><tr><td><code class="inl">partial.reason</code></td><td>문자열</td><td>멈춘 이유. <code class="inl">&quot;시간 상한&quot;</code> 또는 <code class="inl">&quot;페이지 상한(3000p)&quot;</code>.</td></tr><tr><td><code class="inl">partial.unit</code></td><td>문자열</td><td>센 단위. <code class="inl">&quot;pages&quot;</code>(PDF 쪽) · <code class="inl">&quot;parts&quot;</code>(HWPX 구역·PPTX 슬라이드) · <code class="inl">&quot;sheets&quot;</code>(XLSX 시트).</td></tr><tr><td><code class="inl">partial.read</code></td><td>정수</td><td>실제로 읽은 개수.</td></tr><tr><td><code class="inl">partial.total</code></td><td>정수</td><td>문서 전체 개수. read/total 로 얼마나 읽었는지 알 수 있다.</td></tr><tr><td><code class="inl">layout.pages</code></td><td>정수</td><td>읽은 PDF 쪽수(쪽수 상한에 걸렸으면 읽은 만큼).</td></tr><tr><td><code class="inl">layout.scan_pages</code></td><td>정수</td><td>그중 글자 없이 그림만 든 쪽 수. <code class="inl">docparse_scan_pdf_verdict(pages, scan_pages, 본문 글자 수)</code> 에 넘겨 스캔 문서인지 가린다.</td></tr></tbody></table></div><p><b>실패</b>했을 때(반환 코드 0 이 아님)는 최상위에 <code class="inl">error</code> 하나만 있다:</p><div class="twrap"><table><thead><tr><th>error 안의 키</th><th>언제 있나</th><th>설명</th></tr></thead><tbody><tr><td><code class="inl">kind</code></td><td>항상</td><td><code class="inl">&quot;size_limit&quot;</code> · <code class="inl">&quot;unsupported&quot;</code> · <code class="inl">&quot;failed&quot;</code> · <code class="inl">&quot;arg&quot;</code> · <code class="inl">&quot;panic&quot;</code>. 반환 코드와 짝이다(3·4·5·1·99). 파일이 없을 때는 코드가 2(NOT_FOUND)이고 kind 는 그 밖의 원인 그대로다.</td></tr><tr><td><code class="inl">message</code></td><td>항상</td><td>사람이 읽는 사유(한국어). 예: <code class="inl">&quot;지원하지 않는 포맷(감지=image)&quot;</code>. 자체 파서가 이유 없이 못 읽은 경우 빈 문자열일 수 있다.</td></tr><tr><td><code class="inl">size</code></td><td>size_limit</td><td>파일 크기(바이트).</td></tr><tr><td><code class="inl">limit</code></td><td>size_limit</td><td>걸린 상한(바이트).</td></tr><tr><td><code class="inl">text_kind</code></td><td>size_limit</td><td>true 면 텍스트·HTML 상한(<code class="inl">max_file_bytes_text</code>), false 면 일반 상한(<code class="inl">max_file_bytes</code>)에 걸렸다.</td></tr><tr><td><code class="inl">fmt</code></td><td>unsupported</td><td>감지된 형식 이름(예: <code class="inl">&quot;image&quot;</code>·<code class="inl">&quot;unknown&quot;</code>).</td></tr></tbody></table></div>
+
+<h3>2-7. 압축 파일은 먼저 펼친다</h3>
+<p><code class="inl">docparse_extract</code> 는 문서 한 개만 읽는다. zip·7z·rar·tar·gz 등은 <code class="inl">docparse_expand</code> 로 먼저 펼친다.
+<b>압축이 아닌 파일은 그대로 job 하나로 돌아오므로</b>, 모든 입력을 expand 에 넘기고 나온 <code class="inl">jobs[].src</code> 마다 extract 하면 된다.
+형식 감지(<code class="inl">docparse_detect</code>)는 압축 중 zip 만 <code class="inl">&quot;zip&quot;</code> 으로 알려 주고 7z·rar 등은 따로 알려 주지 않으므로, 감지 결과로 압축 여부를 가르지 않는다.</p>
+<pre>입력 [a.hwp, b.zip]
+   └─ docparse_expand([&quot;a.hwp&quot;,&quot;b.zip&quot;], tmp_root, {&quot;max_depth&quot;:3})
+        → jobs = [ {src:&quot;a.hwp&quot;,          label:&quot;a.hwp&quot;,          origin:null},
+                   {src:&quot;&lt;tmp&gt;/a1&quot;,        label:&quot;b.zip/안.docx&quot;,   origin:&quot;b.zip&quot;}, … ]
+        → stats.unexpanded = 못 펼친 압축(암호·깨짐·상한)
+   └─ jobs[].src 마다 docparse_extract
+   └─ 다 쓰면 tmp_root 를 지운다 (펼친 파일이 tmp_root 바로 아래 a1, a2… 로 생긴다)</pre>
+<div class="note warn"><span class="badge">tmp_root</span><p>펼친 파일이 tmp_root 바로 아래에 생긴다. 공용 임시 폴더(%TEMP%, /tmp) 자체를 주지 말고 <b>작업마다 새 폴더를 만들어 주고, 끝나면 지운다</b>.</p></div>
+
+<h3>2-8. 스레드·로그</h3>
+<ul class="plain">
+<li>전역 상태가 없어 <b>여러 스레드에서 동시에 불러도 된다</b>. 로거 등록만 프로세스 전체에 하나다.</li>
+<li>로그는 <code class="inl">docparse_set_logger(fn, max_level, user)</code> 로 받는다. level: 1=error 2=warn 3=info 4=debug 5=trace. 등록하지 않으면 버린다.</li>
+<li>콜백은 추출을 부른 스레드에서 불린다. 짧게 쓰고, 콜백 안에서 docparse 함수를 다시 부르지 않는다.</li>
+<li>Python·Java·PHP 감싸개는 콜백 객체를 붙잡아 둔다. 직접 FFI 를 짤 때도 콜백이 GC 로 사라지지 않게 참조를 쥐고 있어야 한다.</li>
+</ul>
+
+<h3>2-9. 판 확인</h3>
+<p>불러온 직후 <code class="inl">docparse_abi_version() == 1</code> 인지 본다. 함수 모양이 바뀌면 이 숫자가 오르고, 감싸개는 숫자가 다르면 열지 않는다.
+<code class="inl">docparse_version()</code> 은 <code class="inl">&quot;0.1.0+b9704d2&quot;</code> 처럼 크레이트 판 + git 해시다. 로그에 함께 남겨 두면 나중에 어느 판이 만든 결과인지 알 수 있다.</p>
+</section><section id="python"><div class="sec-head"><span class="sec-num">3</span><h2>Python</h2></div>
+<ol class="steps">
+<li><b>파일 두기</b> — <code class="inl">python/docparse.py</code> 를 프로젝트 패키지 안에 복사한다(예: <code class="inl">myapp/_docparse.py</code>). <code class="inl">lib/</code> 의 두 파일은 그 옆이나 그 아래 <code class="inl">lib/</code> 에 둔다.</li>
+<li><b>찾는 순서</b> — <code class="inl">load(path)</code> 인자 → 환경변수 <code class="inl">DOCPARSE_LIB</code> → docparse.py 폴더 → 그 아래 <code class="inl">lib/</code> → PyInstaller <code class="inl">sys._MEIPASS</code> → 실행파일 폴더. 첫 함수 호출 때 저절로 불러온다.</li>
+<li><b>부르기</b> — 아래처럼 쓴다. ctypes 는 호출 동안 GIL 을 풀기 때문에 스레드 풀로 여러 문서를 동시에 읽을 수 있다.</li>
+</ol>
+<pre><span class="fn">example.py (요약)</span>import shutil, tempfile
+import docparse                      # 또는 from myapp import _docparse as docparse
+
+docparse.load()                      # 생략 가능. 경로를 주려면 docparse.load(&quot;C:/app/lib&quot;)
+print(docparse.version(), docparse.lib_path())
+
+# 1) 한 파일
+r = docparse.extract(&quot;보고서.hwp&quot;, clean=True, max_pdf_pages=500, label=&quot;보고서.hwp&quot;)
+print(r.fmt, r.engine, len(r.text))
+if r.partial:                        # (reason, unit, read, total) — 상한에서 멈춰 앞부분만 읽음
+    print(&quot;일부만:&quot;, r.partial)
+if r.layout:                         # (pages, scan_pages) — PDF
+    print(&quot;쪽수:&quot;, r.layout)
+
+# 2) 압축 포함 여러 파일
+tmp = tempfile.mkdtemp(prefix=&quot;docparse-&quot;)
+try:
+    jobs, stats = docparse.expand_paths([&quot;a.hwp&quot;, &quot;b.zip&quot;], tmp, max_depth=3)
+    for src, label, origin in jobs:
+        try:
+            r = docparse.extract(src, clean=True, label=label)
+            print(label, r.fmt, len(r.text))
+        except docparse.SizeLimitError as e:       # 크기 상한 → 처리 제외
+            print(label, &quot;크기 초과&quot;, e.size, &quot;&gt;&quot;, e.limit)
+        except docparse.ExtractError as e:         # e.kind: unsupported·failed·arg·panic
+            print(label, e.kind, e)
+    print(&quot;못 펼침:&quot;, stats[&quot;unexpanded&quot;])
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+
+# 3) 로그
+docparse.set_logger(lambda level, target, site, msg: print(&quot;[docparse]&quot;, level, msg), max_level=2)</pre>
+<div class="twrap"><table><thead><tr><th>함수</th><th>돌려주는 것</th></tr></thead><tbody><tr><td><code class="inl">extract(path, fmt=None, clean=False, parser_timeout=None, max_pdf_pages=None, max_file_bytes=None, max_file_bytes_text=None, pdfium_lib=None, engine=None, synap_exe=None, snf_timeout=None, min_text_len=None, label=None)</code></td><td><code class="inl">Extracted</code>(text, engine, fmt, partial, layout) / 실패 시 <code class="inl">ExtractError</code>·<code class="inl">SizeLimitError</code></td></tr><tr><td><code class="inl">detect_format(path)</code></td><td><code class="inl">&quot;pdf&quot;</code>·<code class="inl">&quot;hwp&quot;</code>·…·<code class="inl">&quot;unknown&quot;</code></td></tr><tr><td><code class="inl">expand_paths(paths, tmp_root, max_depth=3, max_bytes=None, max_members=None)</code></td><td><code class="inl">(jobs, stats)</code> — jobs 는 (src, label, origin) 튜플</td></tr><tr><td><code class="inl">check_size(path, fmt=None, max_file_bytes=None, max_file_bytes_text=None)</code></td><td>None 또는 <code class="inl">{size, limit, text_kind, reason}</code></td></tr><tr><td><code class="inl">clean_text(raw)</code> · <code class="inl">split_volume_hint(name, path=None)</code> · <code class="inl">scan_pdf_verdict(p, s, c)</code></td><td>정제 문자열 · 안내 문구/None · bool</td></tr><tr><td><code class="inl">set_logger(fn, max_level=3)</code> · <code class="inl">version()</code> · <code class="inl">lib_path()</code></td><td>—</td></tr></tbody></table></div>
+<div class="note info"><span class="badge">PyInstaller</span><p>spec 의 <code class="inl">binaries</code> 에 <code class="inl">(&quot;lib/docparse.dll&quot;, &quot;.&quot;)</code> · <code class="inl">(&quot;lib/pdfium.dll&quot;, &quot;.&quot;)</code> 를 넣고, <code class="inl">hiddenimports</code> 에 감싸개 모듈 이름을 넣는다. 그러면 <code class="inl">_MEIPASS</code> 에서 찾는다. MpowerClassify 의 <code class="inl">build/csoclassify.spec</code> 가 실제 예다.</p></div>
+</section><section id="rust"><div class="sec-head"><span class="sec-num">4</span><h2>Rust</h2></div>
+<p>Rust 쪽도 crate 로 링크하지 않고 <b>실행 중에 DLL 을 연다</b>(libloading). 그래서 파서만 새 판으로 바꿔 끼울 때 프로그램을 다시 빌드할 필요가 없다.</p>
+<ol class="steps">
+<li><b>파일 두기</b> — <code class="inl">rust/docparse_dyn.rs</code> 를 <code class="inl">src/</code> 에 복사하고 <code class="inl">main.rs</code> 에 <code class="inl">mod docparse_dyn;</code>.</li>
+<li><b>의존 추가</b> — Cargo.toml 에 아래 두 줄.</li>
+<li><b>라이브러리 두기</b> — <code class="inl">lib/</code> 두 파일을 실행파일 옆(또는 한 단계 위)에 둔다. 아니면 환경변수로 알려 준다.</li>
+</ol>
+<pre><span class="fn">Cargo.toml</span>[dependencies]
+libloading = &quot;0.8&quot;
+serde_json = &quot;1&quot;</pre>
+<pre><span class="fn">src/main.rs (rust/example 과 같은 내용)</span>mod docparse_dyn;
+use docparse_dyn::{DocParse, ExtractError};
+use serde_json::json;
+use std::ffi::{c_char, c_int, c_void, CStr};
+use std::path::{Path, PathBuf};
+
+// 로그 콜백 — extern &quot;C&quot; fn 모양. msg 는 콜백이 도는 동안만 유효하다.
+extern &quot;C&quot; fn on_log(level: c_int, _t: *const c_char, _s: *const c_char, msg: *const c_char, _u: *mut c_void) {
+    eprintln!(&quot;[docparse {}] {}&quot;, level, unsafe { CStr::from_ptr(msg) }.to_string_lossy());
+}
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // 찾는 순서: 직접 지정 → 환경변수 DOCPARSE_LIB → 실행파일 폴더 → 그 상위 폴더
+    // 직접 지정(Some)했는데 없으면 다른 곳 것으로 대신하지 않고 실패한다.
+    let dp = DocParse::find_and_load(None, &quot;DOCPARSE_LIB&quot;)?;
+    println!(&quot;docparse {} ({})&quot;, dp.version(), dp.path().display());
+    dp.set_logger(Some(on_log), 2, std::ptr::null_mut());
+
+    let tmp = std::env::temp_dir().join(format!(&quot;docparse-{}&quot;, std::process::id()));
+    std::fs::create_dir_all(&amp;tmp)?;
+    let inputs = vec![PathBuf::from(&quot;a.hwp&quot;), PathBuf::from(&quot;b.zip&quot;)];
+    let ex = dp.expand(&amp;inputs, &amp;tmp, &amp;json!({&quot;max_depth&quot;: 3}))?;
+
+    for (src, label, _origin) in &amp;ex.jobs {
+        let opts = json!({&quot;clean&quot;: true, &quot;label&quot;: label, &quot;limits&quot;: {&quot;max_pdf_pages&quot;: 500}});
+        match dp.extract(src, &amp;opts) {
+            Ok(r) =&gt; println!(&quot;{} : {} {}자 partial={:?}&quot;, label, r.fmt, r.text.chars().count(), r.partial),
+            Err(ExtractError::SizeLimit { size, limit, .. }) =&gt; println!(&quot;{} : 크기 초과 {} &gt; {}&quot;, label, size, limit),
+            Err(ExtractError::Unsupported { fmt, .. }) =&gt; println!(&quot;{} : 지원 안 함({})&quot;, label, fmt),
+            Err(e) =&gt; println!(&quot;{} : {}&quot;, label, e),   // Failed · Arg · Panic
+        }
+    }
+    println!(&quot;못 펼침: {:?}&quot;, ex.unexpanded);
+    std::fs::remove_dir_all(&amp;tmp)?;
+    Ok(())
+}</pre>
+<div class="twrap"><table><thead><tr><th>메서드</th><th>돌려주는 것</th></tr></thead><tbody><tr><td><code class="inl">DocParse::load(&amp;Path)</code> · <code class="inl">find_and_load(Option&lt;&amp;Path&gt;, env)</code></td><td><code class="inl">Result&lt;DocParse, String&gt;</code></td></tr><tr><td><code class="inl">extract(&amp;Path, &amp;Value)</code></td><td><code class="inl">Result&lt;Extracted, ExtractError&gt;</code> — Extracted{text, engine, fmt, partial: Option<Partial>, layout: Option<Layout>}</td></tr><tr><td><code class="inl">expand(&amp;[PathBuf], &amp;Path, &amp;Value)</code></td><td><code class="inl">Result&lt;Expanded, String&gt;</code> — jobs: Vec<(PathBuf, String, Option<String>)>, unexpanded, unsupported, partial</td></tr><tr><td><code class="inl">detect(&amp;Path)</code></td><td><code class="inl">&amp;&#x27;static str</code></td></tr><tr><td><code class="inl">check_size(&amp;Path, Option&lt;&amp;str&gt;, &amp;Value)</code> · <code class="inl">clean_text(&amp;str)</code> · <code class="inl">split_volume_hint</code> · <code class="inl">scan_pdf_verdict</code></td><td>—</td></tr></tbody></table></div>
+<div class="note info"><span class="badge">빌드할 때 DLL 을 exe 옆으로</span><p>MpowerClassify 의 <code class="inl">Rust/build.rs</code> 는 <code class="inl">third_party/docparse/&lt;os&gt;-x64/</code> 의 라이브러리를 <code class="inl">target/&lt;profile&gt;/</code> 로 복사한다. 그래서 <code class="inl">cargo run</code>·<code class="inl">cargo test</code> 가 바로 동작한다. 같은 방법을 쓰거나, 개발 중에는 <code class="inl">DOCPARSE_LIB</code> 를 설정해 둔다.</p></div>
+</section><section id="deploy"><div class="sec-head"><span class="sec-num">5</span><h2>어디에 두나 — 언어별 라이브러리 찾는 순서</h2></div><div class="twrap"><table><thead><tr><th>언어</th><th>찾는 순서 (앞에서부터)</th><th>직접 지정</th></tr></thead><tbody><tr><td>Python</td><td>인자 → <code class="inl">DOCPARSE_LIB</code> → docparse.py 폴더 → 그 lib/ → <code class="inl">_MEIPASS</code> → 실행파일 폴더</td><td><code class="inl">docparse.load(&quot;경로&quot;)</code></td></tr><tr><td>Rust</td><td>인자 → 환경변수(이름은 부르는 쪽이 정함) → exe 폴더 → exe 상위</td><td><code class="inl">find_and_load(Some(p), …)</code></td></tr><tr><td>C/C++</td><td>Windows: exe 폴더 → 시스템 폴더 → PATH / Linux: RPATH(<code class="inl">-Wl,-rpath</code>) → <code class="inl">LD_LIBRARY_PATH</code> → 시스템</td><td>링크 방식에 따름(§6-4 동적 로딩)</td></tr><tr><td>Java</td><td><code class="inl">DOCPARSE_LIB</code> → <code class="inl">-Ddocparse.lib</code> → ./lib/ → ./ → <code class="inl">jna.library.path</code>·<code class="inl">java.library.path</code>·시스템</td><td><code class="inl">DocParse.load(&quot;경로&quot;)</code></td></tr><tr><td>PHP</td><td><code class="inl">DOCPARSE_LIB</code> → ./lib/ → ./ → DocParse.php 폴더 → 그 lib/ → 그 상위 lib/ → 시스템</td><td><code class="inl">DocParse::load(&quot;경로&quot;)</code></td></tr></tbody></table></div><div class="note warn"><span class="badge">어디서든</span><p>어느 경우든 <b>pdfium 은 docparse 와 같은 폴더</b>에 둔다. docparse 만 옮기면 PDF 만 실패한다.</p></div></section><section id="c"><div class="sec-head"><span class="sec-num">6</span><h2>C / C++</h2></div>
+<h3>6-1. Windows (MSVC)</h3>
+<ol class="steps">
+<li><code class="inl">include/docparse.h</code> 를 include 경로에, <code class="inl">lib/docparse.lib</code> 를 링크 목록에 넣는다.</li>
+<li>빌드된 exe 옆에 <code class="inl">docparse.dll</code> · <code class="inl">pdfium.dll</code> 을 복사한다.</li>
+</ol>
+<pre><span class="fn">명령줄 빌드</span>:: 개발자 명령 프롬프트(x64)에서
+cl /utf-8 /W3 /I include example.c lib\docparse.lib shell32.lib
+copy lib\docparse.dll . &amp; copy lib\pdfium.dll .
+example.exe 보고서.hwp 자료.zip</pre>
+<pre><span class="fn">CMakeLists.txt (Windows · Linux 공용)</span>cmake_minimum_required(VERSION 3.15)
+project(myapp C)
+set(DP ${CMAKE_SOURCE_DIR}/third_party/docparse)
+add_executable(myapp main.c)
+target_include_directories(myapp PRIVATE ${DP}/include)
+if(WIN32)
+  target_link_libraries(myapp PRIVATE ${DP}/lib/docparse.lib shell32)
+  # 빌드 후 DLL 두 개를 exe 옆으로
+  add_custom_command(TARGET myapp POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${DP}/lib/docparse.dll ${DP}/lib/pdfium.dll $&lt;TARGET_FILE_DIR:myapp&gt;)
+else()
+  target_link_libraries(myapp PRIVATE ${DP}/lib/libdocparse.so)
+  set_target_properties(myapp PROPERTIES BUILD_RPATH &quot;${DP}/lib&quot; INSTALL_RPATH &quot;$ORIGIN/lib&quot;)
+endif()</pre>
+<p>Visual Studio 프로젝트라면 <b>속성 → C/C++ → 추가 포함 디렉터리</b>에 include, <b>링커 → 입력 → 추가 종속성</b>에 <code class="inl">docparse.lib</code>, <b>빌드 후 이벤트</b>로 DLL 두 개를 복사한다.</p>
+
+<h3>6-2. Linux (gcc)</h3>
+<pre>gcc -std=c99 -Wall -I include example.c -L lib -ldocparse -Wl,-rpath,&#x27;$ORIGIN/lib&#x27; -o example
+./example 보고서.hwp 자료.zip</pre>
+<p><code class="inl">-Wl,-rpath,&#x27;$ORIGIN/lib&#x27;</code> 를 주면 실행파일 옆 <code class="inl">lib/</code> 에서 libdocparse.so 를 찾는다. <code class="inl">libdocparse.so</code> 자신에게도
+<code class="inl">RPATH=$ORIGIN</code> 이 새겨져 있어 같은 폴더의 <code class="inl">libpdfium.so</code> 를 찾는다. 빌드서버(CentOS 7)에서 만들어 <b>glibc 2.17 이상 리눅스</b>에서 돈다.</p>
+
+<h3>6-3. 코드</h3>
+<pre><span class="fn">c/example.c (요약 — 전체판은 zip 펼치기 포함)</span>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &quot;docparse.h&quot;
+#ifdef _WIN32
+#include &lt;windows.h&gt;
+#include &lt;shellapi.h&gt;
+/* [중요] Windows 의 argv 는 CP949 다. UTF-8 로 바꿔야 한글 경로가 된다. */
+static char** utf8_argv(int* argc) {
+    LPWSTR* w = CommandLineToArgvW(GetCommandLineW(), argc);
+    char** a = calloc((size_t)*argc + 1, sizeof(char*));
+    for (int i = 0; i &lt; *argc; i++) {
+        int n = WideCharToMultiByte(CP_UTF8, 0, w[i], -1, NULL, 0, NULL, NULL);
+        a[i] = malloc((size_t)n);
+        WideCharToMultiByte(CP_UTF8, 0, w[i], -1, a[i], n, NULL, NULL);
+    }
+    LocalFree(w);
+    return a;
+}
+#endif
+
+static void on_log(int level, const char* target, const char* site, const char* msg, void* user) {
+    fprintf(stderr, &quot;[docparse %d] %s\n&quot;, level, msg);
+}
+
+int main(int argc, char** argv) {
+#ifdef _WIN32
+    argv = utf8_argv(&amp;argc);
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+    if (docparse_abi_version() != DOCPARSE_ABI_VERSION) return 1;   /* 판이 다르면 쓰지 않는다 */
+    printf(&quot;docparse %s\n&quot;, docparse_version());                    /* 고정 문자열 — 해제하지 않음 */
+    docparse_set_logger(on_log, 2, NULL);
+
+    for (int i = 1; i &lt; argc; i++) {
+        char* out = NULL;
+        int code = docparse_extract(argv[i], &quot;{\&quot;clean\&quot;:true,\&quot;limits\&quot;:{\&quot;max_pdf_pages\&quot;:500}}&quot;, &amp;out);
+        switch (code) {
+        case DP_OK:             printf(&quot;성공: %.200s\n&quot;, out); break;   /* {&quot;text&quot;:…,&quot;fmt&quot;:…} */
+        case DP_ERR_SIZE_LIMIT: printf(&quot;크기 초과: %s\n&quot;, out); break;
+        case DP_ERR_NOT_FOUND:  printf(&quot;파일 없음: %s\n&quot;, argv[i]); break;
+        default:                printf(&quot;실패(%d): %s\n&quot;, code, out); break; /* {&quot;error&quot;:{…}} */
+        }
+        docparse_free(out);      /* 성공이든 실패든 반드시. NULL 이어도 된다 */
+    }
+    docparse_set_logger(NULL, 0, NULL);
+    return 0;
+}</pre>
+<p>결과가 JSON 이므로 실제 프로그램에서는 <b>cJSON</b>·<b>jansson</b>(C), <b>nlohmann/json</b>(C++) 등으로 읽는다.
+C++ 에서는 <code class="inl">extern &quot;C&quot;</code> 가 헤더에 이미 들어 있어 그대로 <code class="inl">#include</code> 하면 된다. 해제를 잊지 않으려면
+<code class="inl">std::unique_ptr&lt;char, decltype(&amp;docparse_free)&gt; p(out, docparse_free);</code> 처럼 감싸 두면 편하다.</p>
+
+<h3>6-4. 링크 없이 실행 중에 열기 (선택)</h3>
+<p><code class="inl">docparse.lib</code> 없이, 또는 파일이 없을 때도 프로그램이 떠야 한다면 동적으로 연다. Rust·Python 감싸개가 쓰는 방식과 같다.</p>
+<pre>#ifdef _WIN32
+  HMODULE h = LoadLibraryW(L&quot;C:\\app\\lib\\docparse.dll&quot;);
+  #define SYM(n) GetProcAddress(h, n)
+#else
+  #include &lt;dlfcn.h&gt;
+  void* h = dlopen(&quot;/opt/app/lib/libdocparse.so&quot;, RTLD_NOW);
+  #define SYM(n) dlsym(h, n)
+#endif
+typedef int  (*extract_fn)(const char*, const char*, char**);
+typedef void (*free_fn)(char*);
+extract_fn dp_extract = (extract_fn)SYM(&quot;docparse_extract&quot;);
+free_fn    dp_free    = (free_fn)SYM(&quot;docparse_free&quot;);</pre>
+</section><section id="java"><div class="sec-head"><span class="sec-num">7</span><h2>Java</h2></div>
+<p><b>JNA</b> 로 감쌌다. JNI 처럼 C 코드를 따로 짜거나 컴파일할 필요가 없고 Java 8 부터 쓸 수 있다.
+결과를 바로 쓸 수 있게 외부 라이브러리 없는 작은 JSON 해석기(<code class="inl">docparse.Json</code>)를 함께 넣었다.</p>
+<ol class="steps">
+<li><b>의존 추가</b> — JNA 하나. jar 안에 Windows·Linux 용 네이티브 조각이 들어 있다.</li>
+<li><b>소스 두기</b> — <code class="inl">java/docparse/</code> 폴더(<code class="inl">DocParse.java</code>·<code class="inl">Json.java</code>)를 소스 트리에 <code class="inl">docparse</code> 패키지로 복사한다. 패키지 이름을 바꾸려면 두 파일의 <code class="inl">package</code> 줄을 고친다.</li>
+<li><b>라이브러리 두기</b> — 작업 폴더 <code class="inl">lib/</code> 에 두거나 <code class="inl">-Ddocparse.lib=/opt/app/lib/libdocparse.so</code>, 환경변수 <code class="inl">DOCPARSE_LIB</code> 로 알려 준다.</li>
+</ol>
+<pre><span class="fn">pom.xml (Gradle: implementation &#x27;net.java.dev.jna:jna:5.14.0&#x27;)</span>&lt;dependency&gt;
+  &lt;groupId&gt;net.java.dev.jna&lt;/groupId&gt;
+  &lt;artifactId&gt;jna&lt;/artifactId&gt;
+  &lt;version&gt;5.14.0&lt;/version&gt;
+&lt;/dependency&gt;</pre>
+<pre><span class="fn">Example.java (요약 — Java 8 이상, 묶음의 Example.java 도 같은 흐름)</span>import docparse.DocParse;
+import java.io.File;
+import java.util.*;
+
+public class Example {
+    public static void main(String[] args) {
+        DocParse dp = DocParse.load();          // 또는 DocParse.load(&quot;C:/app/lib/docparse.dll&quot;)
+        System.out.println(dp.version() + &quot; &quot; + dp.libPath());
+
+        // 로그 — 콜백은 추출을 부른 스레드에서 불린다
+        dp.setLogger((level, target, site, msg) -&gt; System.err.println(&quot;[docparse &quot; + level + &quot;] &quot; + msg), 2);
+
+        // 1) 한 파일
+        DocParse.Extracted r = dp.extract(&quot;보고서.hwp&quot;, &quot;{\&quot;clean\&quot;:true,\&quot;limits\&quot;:{\&quot;max_pdf_pages\&quot;:500}}&quot;);
+        System.out.println(r.fmt + &quot; &quot; + r.text.length() + &quot; partial=&quot; + r.partial + &quot; layout=&quot; + r.layout);
+
+        // 2) 압축 포함 여러 파일
+        File tmp = new File(System.getProperty(&quot;java.io.tmpdir&quot;), &quot;docparse-&quot; + System.nanoTime());
+        tmp.mkdirs();
+        Map&lt;String, Object&gt; ex = dp.expand(Arrays.asList(&quot;a.hwp&quot;, &quot;b.zip&quot;), tmp.getPath(), &quot;{\&quot;max_depth\&quot;:3}&quot;);
+        @SuppressWarnings(&quot;unchecked&quot;)
+        List&lt;Map&lt;String, Object&gt;&gt; jobs = (List&lt;Map&lt;String, Object&gt;&gt;) ex.get(&quot;jobs&quot;);
+        for (Map&lt;String, Object&gt; j : jobs) {
+            String src = (String) j.get(&quot;src&quot;), label = (String) j.get(&quot;label&quot;);
+            try {
+                DocParse.Extracted x = dp.extract(src, &quot;{\&quot;clean\&quot;:true,\&quot;label\&quot;:&quot; + docparse.Json.quote(label) + &quot;}&quot;);
+                System.out.println(label + &quot; : &quot; + x.fmt + &quot; &quot; + x.text.length());
+            } catch (DocParse.SizeLimitException e) {          // 크기 상한 → 처리 제외
+                System.out.println(label + &quot; : 크기 초과 &quot; + e.size + &quot; &gt; &quot; + e.limit);
+            } catch (DocParse.DocParseException e) {           // e.kind: not_found·unsupported·failed·arg·panic
+                System.out.println(label + &quot; : &quot; + e.kind + &quot; — &quot; + e.getMessage());
+            }
+        }
+        // 다 쓰면 tmp 폴더를 지운다
+    }
+}</pre>
+<pre><span class="fn">컴파일·실행</span># Windows
+javac -encoding UTF-8 -cp jna-5.14.0.jar docparse/*.java Example.java
+java -cp &quot;jna-5.14.0.jar;.&quot; Example 보고서.hwp 자료.zip
+# Linux
+java -Ddocparse.lib=/opt/app/lib/libdocparse.so -cp &quot;jna-5.14.0.jar:.&quot; Example 보고서.hwp 자료.zip</pre>
+<div class="twrap"><table><thead><tr><th>메서드</th><th>돌려주는 것</th></tr></thead><tbody><tr><td><code class="inl">DocParse.load()</code> · <code class="inl">load(String path)</code></td><td><code class="inl">DocParse</code> / 못 찾거나 ABI 가 다르면 <code class="inl">UnsatisfiedLinkError</code></td></tr><tr><td><code class="inl">extract(path)</code> · <code class="inl">extract(path, optsJson)</code></td><td><code class="inl">Extracted</code>{text, engine, fmt, partial(Map), layout(Map), json}</td></tr><tr><td><code class="inl">extractJson(path, optsJson)</code></td><td>성공 결과 JSON 원문(Jackson·Gson 으로 읽을 때)</td></tr><tr><td><code class="inl">expand(List&lt;String&gt;, tmpRoot, optsJson)</code></td><td><code class="inl">Map</code> {jobs:[{src,label,origin}], stats:{…}}</td></tr><tr><td><code class="inl">detect</code> · <code class="inl">checkSize</code> · <code class="inl">cleanText</code> · <code class="inl">splitVolumeHint</code> · <code class="inl">scanPdfVerdict</code> · <code class="inl">setLogger</code> · <code class="inl">version</code></td><td>—</td></tr><tr><td>예외</td><td><code class="inl">DocParseException</code>(code, kind, detail) · 그 하위 <code class="inl">SizeLimitException</code>(size, limit, textKind)</td></tr></tbody></table></div>
+<div class="note info"><span class="badge">서버(Spring·Tomcat)에서</span><p>한 번만 <code class="inl">DocParse.load()</code> 해서 싱글턴 빈으로 두고 여러 요청 스레드에서 같이 쓴다(스레드 안전). 운영 서버는 실행 폴더가 정해져 있지 않으므로 <code class="inl">-Ddocparse.lib=</code> 나 <code class="inl">DOCPARSE_LIB</code> 로 <b>절대 경로를 주는 편이 안전</b>하다. Java 22 이상이면 JNA 대신 표준 FFM(java.lang.foreign)으로 옮길 수도 있지만, 지금 감싸개는 Java 8~21 을 함께 지원하려고 JNA 를 쓴다.</p></div>
+</section><section id="php"><div class="sec-head"><span class="sec-num">8</span><h2>PHP</h2></div>
+<div class="note warn"><span class="badge">시험 상태</span><p>이 문서를 쓸 때 PHP 실행 환경을 쓸 수 없어 <b>PHP 감싸개는 실행 시험을 하지 못했다</b>. 코드는 PHP FFI 문서의 규칙(cdef 선언·FFI::addr·FFI::string·FFI::isNull)대로 작성했고 함수 모양은 C·Java 시험과 같다. 처음 쓸 때 묶음의 example.php 를 한 번 돌려 확인하기를 권한다.</p></div>
+<ol class="steps">
+<li><b>FFI 켜기</b> — PHP 7.4 이상, php.ini 에 <code class="inl">extension=ffi</code>(Windows 는 <code class="inl">ext/php_ffi.dll</code>). 확인: <code class="inl">php -m | grep FFI</code>.</li>
+<li><b>CLI 와 웹은 설정이 다르다</b> — 기본값 <code class="inl">ffi.enable=preload</code> 에서는 <b>CLI 에서만</b> 바로 된다. php-fpm·Apache 모듈에서 쓰려면 <code class="inl">ffi.enable=true</code> 로 두거나 <code class="inl">opcache.preload</code> 로 미리 불러야 한다.</li>
+<li><b>파일 두기</b> — <code class="inl">php/DocParse.php</code> 를 프로젝트에 복사하고 <code class="inl">require</code>. 라이브러리는 실행 폴더 <code class="inl">lib/</code>, DocParse.php 옆이나 그 <code class="inl">lib/</code>, 또는 <code class="inl">DOCPARSE_LIB</code>.</li>
+</ol>
+<pre><span class="fn">php.ini</span>extension=ffi
+; 웹 서버(php-fpm·Apache)에서 쓸 때만
+ffi.enable=true</pre>
+<pre><span class="fn">example.php (요약)</span>&lt;?php
+require __DIR__ . &#x27;/DocParse.php&#x27;;
+
+$dp = DocParse::load();                       // 또는 DocParse::load(&#x27;/opt/app/lib/libdocparse.so&#x27;)
+echo $dp-&gt;version(), &#x27; &#x27;, $dp-&gt;libPath(), &quot;\n&quot;;
+
+$dp-&gt;setLogger(function ($level, $target, $site, $msg) {
+    error_log(&quot;[docparse $level] $msg&quot;);
+}, 2);
+
+// 1) 한 파일 — 옵션은 PHP 배열(안에서 JSON 으로 바꾼다)
+$r = $dp-&gt;extract(&#x27;보고서.hwp&#x27;, [&#x27;clean&#x27; =&gt; true, &#x27;limits&#x27; =&gt; [&#x27;max_pdf_pages&#x27; =&gt; 500]]);
+echo $r[&#x27;fmt&#x27;], &#x27; &#x27;, mb_strlen($r[&#x27;text&#x27;]), &quot;\n&quot;;
+
+// 2) 압축 포함 여러 파일
+$tmp = sys_get_temp_dir() . &#x27;/docparse-&#x27; . uniqid();
+mkdir($tmp);
+$ex = $dp-&gt;expand([&#x27;a.hwp&#x27;, &#x27;b.zip&#x27;], $tmp, [&#x27;max_depth&#x27; =&gt; 3]);
+foreach ($ex[&#x27;jobs&#x27;] as $j) {
+    try {
+        $x = $dp-&gt;extract($j[&#x27;src&#x27;], [&#x27;clean&#x27; =&gt; true, &#x27;label&#x27; =&gt; $j[&#x27;label&#x27;]]);
+        echo $j[&#x27;label&#x27;], &#x27; : &#x27;, $x[&#x27;fmt&#x27;], &#x27; &#x27;, mb_strlen($x[&#x27;text&#x27;]), &quot;\n&quot;;
+    } catch (DocParseSizeLimitException $e) {           // 크기 상한 → 처리 제외
+        echo $j[&#x27;label&#x27;], &quot; : 크기 초과 {$e-&gt;size} &gt; {$e-&gt;limit}\n&quot;;
+    } catch (DocParseException $e) {                    // $e-&gt;kind: not_found·unsupported·failed·arg·panic
+        echo $j[&#x27;label&#x27;], &quot; : {$e-&gt;kind} — {$e-&gt;getMessage()}\n&quot;;
+    }
+}
+// 다 쓰면 $tmp 를 지운다</pre>
+<pre><span class="fn">실행</span>php -d extension=ffi example.php 보고서.hwp 자료.zip</pre>
+<div class="twrap"><table><thead><tr><th>메서드</th><th>돌려주는 것</th></tr></thead><tbody><tr><td><code class="inl">DocParse::load(?string $path)</code></td><td><code class="inl">DocParse</code> / 실패 시 <code class="inl">RuntimeException</code></td></tr><tr><td><code class="inl">extract(string $path, ?array $opts)</code></td><td><code class="inl">[&#x27;text&#x27;,&#x27;engine&#x27;,&#x27;fmt&#x27;,&#x27;partial&#x27;,&#x27;layout&#x27;]</code> 배열</td></tr><tr><td><code class="inl">expand(array $paths, string $tmpRoot, ?array $opts)</code></td><td><code class="inl">[&#x27;jobs&#x27;=&gt;[…], &#x27;stats&#x27;=&gt;[…]]</code></td></tr><tr><td><code class="inl">detect</code> · <code class="inl">checkSize</code> · <code class="inl">cleanText</code> · <code class="inl">splitVolumeHint</code> · <code class="inl">scanPdfVerdict</code> · <code class="inl">setLogger</code> · <code class="inl">version</code></td><td>—</td></tr><tr><td>예외</td><td><code class="inl">DocParseException</code>(getCode(), kind, detail) · 그 하위 <code class="inl">DocParseSizeLimitException</code>(size, limit, textKind)</td></tr></tbody></table></div>
+<div class="note info"><span class="badge">웹 요청마다 load 하지 않기</span><p><code class="inl">FFI::cdef</code> 는 요청마다 부르면 느리다. php-fpm 에서는 <code class="inl">opcache.preload</code> 스크립트에서 <code class="inl">FFI::load</code>/<code class="inl">FFI::scope</code> 로 미리 불러 두는 방식이 PHP 권장안이다. 한 요청 안에서는 DocParse 객체 하나를 계속 쓴다.</p></div>
+</section><section id="others"><div class="sec-head"><span class="sec-num">9</span><h2>그 밖의 언어</h2></div>
+<p>C 함수 11개와 JSON 문자열만 다루면 되므로 FFI 가 있는 언어는 모두 같은 방식이다. 감싸개를 새로 만들 때는 <b>이 순서만 지키면 된다</b>.</p>
+<ol class="plain">
+<li>라이브러리를 열고 <code class="inl">docparse_abi_version() == 1</code> 확인</li>
+<li>문자열 인자는 UTF-8 바이트로 넘기기(그 언어의 기본 마샬링이 시스템 코드페이지면 바꾸기)</li>
+<li><code class="inl">char**</code> 결과는 포인터로 받아 UTF-8 로 읽고 <b>곧바로 <code class="inl">docparse_free</code></b></li>
+<li>반환 코드 0 이 아니면 결과 JSON 의 <code class="inl">error</code> 로 예외 만들기, 3 은 크기 초과로 따로</li>
+<li>로그 콜백을 등록했다면 콜백 객체가 GC 되지 않게 붙잡아 두기</li>
+</ol>
+<div class="twrap"><table><thead><tr><th>언어</th><th>쓰는 기술</th><th>선언 한 줄 예(참고 — 시험 안 함)</th></tr></thead><tbody><tr><td>C# / .NET</td><td>P/Invoke</td><td><code class="inl">[DllImport(&quot;docparse&quot;, CallingConvention=CallingConvention.Cdecl)] static extern int docparse_extract(byte[] path, byte[] opts, out IntPtr outJson);</code></td></tr><tr><td>Go</td><td>cgo</td><td><code class="inl">// #cgo LDFLAGS: -L${SRCDIR}/lib -ldocparse</code> + <code class="inl">#include &quot;docparse.h&quot;</code></td></tr><tr><td>Node.js</td><td>koffi 등</td><td><code class="inl">lib.func(&#x27;int docparse_extract(const char*, const char*, _Out_ char**)&#x27;)</code></td></tr></tbody></table></div>
+</section><section id="trouble"><div class="sec-head"><span class="sec-num">10</span><h2>문제가 생기면</h2></div><div class="twrap"><table><thead><tr><th>증상</th><th>원인</th><th>해결</th></tr></thead><tbody><tr><td>PDF 만 <code class="inl">failed</code>, 다른 형식은 정상</td><td>pdfium 을 못 찾음</td><td>pdfium 을 docparse 와 같은 폴더에. 또는 옵션 <code class="inl">&quot;pdfium_lib&quot;</code></td></tr><tr><td>한글 경로만 <code class="inl">DP_ERR_ARG</code>(1)</td><td>UTF-8 이 아닌 문자열을 넘김(Windows C 의 argv 등)</td><td>UTF-8 로 바꿔 넘기기(§6-3)</td></tr><tr><td>라이브러리를 못 찾음 / <code class="inl">UnsatisfiedLinkError</code></td><td>찾는 위치에 없음, 또는 32비트 런타임</td><td>§5 의 순서 확인, 절대 경로 지정. 64비트 Python·JVM·PHP 인지 확인</td></tr><tr><td>ABI 판이 다르다며 안 열림</td><td>감싸개와 라이브러리 판이 다름</td><td>같은 묶음의 감싸개·라이브러리를 함께 쓰기</td></tr><tr><td>Linux 에서 <code class="inl">GLIBC_2.xx not found</code></td><td>더 새 리눅스에서 빌드한 .so</td><td>빌드서버(CentOS 7)에서 만든 묶음 쓰기 — glibc 2.17 이상이면 된다</td></tr><tr><td>추출 결과에 <code class="inl">partial</code></td><td>시간·쪽수 상한에서 멈춰 앞부분만 읽음</td><td>정상 동작. 필요하면 <code class="inl">limits</code> 를 늘리거나 0(상한 없음)</td></tr><tr><td>임시 폴더에 a1, a2… 가 쌓임</td><td>expand 후 tmp_root 를 안 지움</td><td>작업마다 새 폴더를 주고 끝나면 지우기</td></tr><tr><td>로그 콜백 뒤 프로세스가 죽음</td><td>콜백 객체가 GC 됨, 또는 콜백에서 예외</td><td>참조 붙잡기·콜백 안 예외 삼키기(감싸개는 이미 그렇게 함)</td></tr></tbody></table></div></section><section id="ref"><div class="sec-head"><span class="sec-num">11</span><h2>C 함수 11개</h2></div><div class="twrap"><table><thead><tr><th>#</th><th>함수</th><th>하는 일</th><th>해제</th></tr></thead><tbody><tr><td>1</td><td><code class="inl">uint32_t docparse_abi_version(void)</code></td><td>ABI 판(지금 1)</td><td>—</td></tr><tr><td>2</td><td><code class="inl">const char* docparse_version(void)</code></td><td>"0.1.0+abc1234"</td><td>하지 않음</td></tr><tr><td>3</td><td><code class="inl">int docparse_detect(path, const char** out_fmt)</code></td><td>내용으로 형식 감지(pdf·hwp·hwpx·doc·docx·xls·xlsx·ppt·pptx·html·text·image·zip·…·unknown)</td><td>하지 않음</td></tr><tr><td>4</td><td><code class="inl">int docparse_extract(path, opts_json, char** out_json)</code></td><td>본문 추출</td><td><code class="inl">docparse_free</code></td></tr><tr><td>5</td><td><code class="inl">int docparse_check_size(path, fmt, opts_json, char** out_json)</code></td><td>크기 상한 검사만 → <code class="inl">{&quot;hit&quot;: null | {…}}</code></td><td><code class="inl">docparse_free</code></td></tr><tr><td>6</td><td><code class="inl">int docparse_expand(paths_json, tmp_root, opts_json, char** out_json)</code></td><td>압축 펼치기 → jobs·stats</td><td><code class="inl">docparse_free</code></td></tr><tr><td>7</td><td><code class="inl">int docparse_split_volume_hint(name, path, char** out_json)</code></td><td>분할 압축 조각 안내 → <code class="inl">{&quot;hint&quot;: null | &quot;…&quot;}</code></td><td><code class="inl">docparse_free</code></td></tr><tr><td>8</td><td><code class="inl">int docparse_clean_text(text, char** out_text)</code></td><td>6단계 본문 정제(결과는 JSON 이 아닌 문자열)</td><td><code class="inl">docparse_free</code></td></tr><tr><td>9</td><td><code class="inl">int docparse_scan_pdf_verdict(pages, scan_pages, body_chars)</code></td><td>스캔 PDF 판정 1/0</td><td>—</td></tr><tr><td>10</td><td><code class="inl">void docparse_free(char* p)</code></td><td>이 라이브러리가 준 문자열 해제(NULL 가능)</td><td>—</td></tr><tr><td>11</td><td><code class="inl">void docparse_set_logger(dp_log_fn fn, int max_level, void* user)</code></td><td>로그 받기(fn=NULL 이면 해제)</td><td>—</td></tr></tbody></table></div><p class="src">자세한 모양은 묶음의 include/docparse.h 가 기준이다. 설계: MpowerClassify plan/Rust-문서파서-라이브러리분리-설계-20261110.html (개정 2)</p></section>
+<footer><span>docparse 사용 설명서</span><span>github.com/kobongsoo/DocParse-rust</span></footer>
+</div>
+</body>
+</html>
