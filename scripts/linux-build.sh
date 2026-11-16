@@ -4,9 +4,9 @@
 #=> 이 PC(Windows)에서 실행한다. 빌드서버에서 만들어야 오래된 리눅스(glibc 2.17)에서도 돈다.
 #    1) 접속 정보 읽기 — scripts/server.env 의 SSH_ENV_FILE(KEY=VALUE 파일: SSH_SERVER·SSH_USER_ID·SSH_USER_PWD)
 #    2) 소스 묶음(Cargo.toml·Cargo.lock·crates) 올리기
-#    3) 빌드서버에서 cargo test --workspace · cargo build --release -p docparse-ffi
+#    3) 빌드서버에서 cargo test --workspace · cargo build --release -p docparse-ffi -p docparse-cli
 #       RPATH=$ORIGIN 이 새겨졌는지, 요구 glibc 가 2.17 이하인지 확인
-#    4) libdocparse.so 를 받아 scripts/package.py 로 dist/docparse-<버전>-linux-x64.tgz
+#    4) libdocparse.so · dp 를 받아 scripts/package.py 로 dist/docparse-<버전>-linux-x64.tgz
 #
 #   사용: bash scripts/linux-build.sh   (Git Bash · PuTTY 의 plink/pscp 필요)
 #   설정: scripts/server.env (scripts/server.env.sample 참고, .gitignore 로 막혀 있다)
@@ -82,7 +82,7 @@ cd "$DP_BUILD_DIR"
 rm -rf crates Cargo.toml Cargo.lock
 tar xzf dpsrc.tgz
 cargo test --workspace > test.log 2>&1 || { tail -30 test.log; echo "cargo test 실패 — $DP_BUILD_DIR/test.log"; exit 1; }
-cargo build --release -p docparse-ffi > build.log 2>&1 || { tail -30 build.log; echo "cargo build 실패 — $DP_BUILD_DIR/build.log"; exit 1; }
+cargo build --release -p docparse-ffi -p docparse-cli > build.log 2>&1 || { tail -30 build.log; echo "cargo build 실패 — $DP_BUILD_DIR/build.log"; exit 1; }
 f=target/release/libdocparse.so
 [ -f \$f ] || { echo "빌드 결과가 없습니다: \$f"; exit 1; }
 readelf -d \$f | grep -Eq '(RPATH|RUNPATH).*\\\$ORIGIN' || { echo "RPATH=\\\$ORIGIN 이 없습니다"; exit 1; }
@@ -90,12 +90,19 @@ readelf -d \$f | grep -Eq '(RPATH|RUNPATH).*\\\$ORIGIN' || { echo "RPATH=\\\$ORI
 g=\$(objdump -T \$f | grep -o 'GLIBC_[0-9.]*' | sort -t. -k2 -n -u | tail -1)
 echo "  최고 요구 glibc: \$g"
 echo "  \$(ls -la \$f | awk '{print \$5}') B"
+# 시험 도구 dp 도 같은 glibc 상한을 지켜야 빌드서버 밖에서 돈다
+d=target/release/dp
+[ -f \$d ] || { echo "빌드 결과가 없습니다: \$d"; exit 1; }
+gd=\$(objdump -T \$d | grep -o 'GLIBC_[0-9.]*' | sort -t. -k2 -n -u | tail -1)
+echo "  dp 최고 요구 glibc: \$gd"
 EOF
 
 step "받아 오기"
 mkdir -p target/linux-x64
 pscp -batch -q -pw "$PW" "$USER_ID@$HOST:$DP_BUILD_DIR/target/release/libdocparse.so" target/linux-x64/ \
     || die "libdocparse.so 내려받기 실패"
+pscp -batch -q -pw "$PW" "$USER_ID@$HOST:$DP_BUILD_DIR/target/release/dp" target/linux-x64/ \
+    || die "dp 내려받기 실패"
 
 step "묶기"
-python scripts/package.py linux-x64 target/linux-x64/libdocparse.so "$VERSION"
+python scripts/package.py linux-x64 target/linux-x64/libdocparse.so "$VERSION" target/linux-x64/dp

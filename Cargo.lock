@@ -320,6 +320,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "docparse-cli"
+version = "0.1.1"
+dependencies = [
+ "docparse",
+ "log",
+ "serde_json",
+]
+
+[[package]]
 name = "docparse-ffi"
 version = "0.1.1"
 dependencies = [

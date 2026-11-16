@@ -2,9 +2,9 @@
 #------------------------------------------------------------------
 # Windows 빌드 — 이 PC 에서 docparse.dll 을 만들고 배포 묶음(zip)으로 낸다
 #=> 1) cargo test --workspace (본체·C 진입점 시험)
-#   2) cargo build --release -p docparse-ffi → target/release/docparse.dll
-#   3) Python 감싸개로 불러 보기(ABI·버전·텍스트 한 건 추출)
-#   4) scripts/package.py 로 dist/docparse-<버전>-windows-x64.zip
+#   2) cargo build --release -p docparse-ffi -p docparse-cli → target/release/docparse.dll · dp.exe
+#   3) Python 감싸개로 불러 보기(ABI·버전·텍스트 한 건 추출), dp.exe 로 같은 버전·추출 확인
+#   4) scripts/package.py 로 dist/docparse-<버전>-windows-x64.zip (dp.exe 포함)
 #
 #   사용: bash scripts/win-build.sh   (Git Bash)
 #------------------------------------------------------------------
@@ -29,9 +29,11 @@ step "시험"
 cargo test --workspace >/dev/null 2>&1 || die "cargo test 실패 — 'cargo test --workspace' 로 보세요"
 
 step "릴리스 빌드 ($VERSION)"
-cargo build --release -p docparse-ffi >/dev/null 2>&1 || die "cargo build 실패"
+cargo build --release -p docparse-ffi -p docparse-cli >/dev/null 2>&1 || die "cargo build 실패"
 LIB=target/release/docparse.dll
+CLI=target/release/dp.exe
 [ -f "$LIB" ] || die "빌드 결과가 없습니다: $LIB"
+[ -f "$CLI" ] || die "빌드 결과가 없습니다: $CLI"
 
 step "불러 보기"
 cp third_party/pdfium/windows-x64/pdfium.dll target/release/
@@ -47,7 +49,11 @@ r = docparse.extract(sys.argv[2], clean=True)
 assert "시험" in r.text, r
 print("  ", docparse.version(), r)
 PY
+# dp.exe 도 DLL 과 같은 버전 · 같은 본문을 내는지 본다
+"$CLI" version | grep -qF "$VERSION" || die "dp.exe 버전이 $VERSION 이 아닙니다"
+"$CLI" extract "$tmp/a.txt" 2>/dev/null | grep -q "시험" || die "dp.exe 로 추출 실패"
+echo "   $("$CLI" version)"
 rm -rf "$tmp"
 
 step "묶기"
-python scripts/package.py windows-x64 "$LIB" "$VERSION"
+python scripts/package.py windows-x64 "$LIB" "$VERSION" "$CLI"

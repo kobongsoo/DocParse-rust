@@ -6,3 +6,5 @@ __pycache__/
 /examples/rust/target
 /examples/rust/Cargo.lock
 *.class
+/work/
+/tests/private/

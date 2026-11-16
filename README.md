@@ -32,6 +32,7 @@
 ```
 crates/docparse/          본체(Rust 라이브러리) — 형식별 파서·정제·압축 해제
 crates/docparse-ffi/      C 진입점 → docparse.dll / libdocparse.so
+crates/docparse-cli/      시험 도구 → dp.exe / dp (C 진입점을 그대로 거쳐 문서를 읽는다)
   include/docparse.h      C 헤더 (함수 11개, 옵션·결과는 UTF-8 JSON)
 bindings/python/docparse.py   ctypes 감싸개 (표준 라이브러리만)
 bindings/rust/docparse_dyn.rs libloading 감싸개 (libloading · serde_json)
@@ -39,11 +40,23 @@ bindings/java/docparse/       JNA 감싸개 (Java 8+, jna 5.14+) + 작은 JSON �
 bindings/php/DocParse.php     FFI 감싸개 (PHP 7.4+)
 examples/                 언어별 예제 (python · rust · java · php · c)
 doc/docparse-라이브러리-연동설명서.html   언어별 적용 방법 설명서 (묶음 안: doc/docparse-guide.html)
+doc/빌드_CLI시험_설명서.html   빌드하고 dp.exe 로 시험하는 방법 (묶음 안: doc/build-cli-guide.html)
+tests/samples/            지어낸 시험 문서 10건 (+ 목록 tests/samples.txt, 다시 만들기 tools/make_samples.py)
 third_party/pdfium/       pdfium 정본 (묶음에 같이 넣는다)
 scripts/                  win-build.sh · linux-build.sh · package.py
 ```
 
 ## 빌드
+
+개발 중 빌드·시험은 `cargo build --release` 후 `target/release/dp.exe` 로 합니다 — 자세한 순서는 `doc/빌드_CLI시험_설명서.html`.
+
+```bash
+cargo build --release                                    # docparse.dll + dp.exe
+./target/release/dp.exe extract tests/samples/보고서_예시.docx    # 본문 보기 (pdfium.dll 은 dp.exe 옆에)
+./target/release/dp.exe dump tests/samples.txt work/out_a       # 여러 건 → 고친 뒤 compare 로 비교
+```
+
+배포 묶음:
 
 ```bash
 bash scripts/win-build.sh      # 이 PC → dist/docparse-<버전>-windows-x64.zip
@@ -57,6 +70,7 @@ bash scripts/linux-build.sh    # 빌드서버(CentOS 7) → dist/docparse-<버�
 | 경로 | 내용 |
 |---|---|
 | `lib/` | `docparse.dll` + `pdfium.dll` (Linux: `libdocparse.so` + `libpdfium.so`, RPATH=$ORIGIN) |
+| `lib/dp.exe` (Linux `lib/dp`) | 시험 도구 — 풀자마자 `lib/dp.exe extract 문서` 로 같은 코드를 시험 |
 | `lib/docparse.lib` | Windows 전용 — C/C++ 가 링크할 때 쓰는 가져오기 라이브러리(정적 라이브러리 아님, 실행 때는 DLL 필요) |
 | `include/docparse.h` | C 헤더 — 모든 언어의 기준 |
 | `python/` | `docparse.py` 감싸개 · `example.py` |
@@ -64,7 +78,7 @@ bash scripts/linux-build.sh    # 빌드서버(CentOS 7) → dist/docparse-<버�
 | `java/` | `docparse/DocParse.java` · `docparse/Json.java` 감싸개 · `Example.java` |
 | `php/` | `DocParse.php` 감싸개 · `example.php` |
 | `c/` | `example.c` (MSVC · gcc) |
-| `doc/` | `docparse-guide.html` — 언어별 적용 과정과 코드 예시 |
+| `doc/` | `docparse-guide.html` — 언어별 적용 과정과 코드 예시 · `build-cli-guide.html` — 빌드와 dp 시험 |
 | `VERSION` · `SHA256SUMS` · `CHANGELOG.md` | 버전("0.1.0+git해시")·파일 해시·변경 기록 |
 
 ## 쓰기

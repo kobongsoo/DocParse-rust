@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>문서 파서 빌드·시험 안내</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --ground: #f5f7fa; --surface: #ffffff; --sunken: #eceff4; --ink: #19212d; --ink-2: #3c4656;
+  --muted: #647083; --rule: #d9dee6; --accent: #2c5aa0; --accent-soft: #e3ebf7;
+  --good: #2a7a57; --good-soft: #e2f1ea; --warn: #a8701a; --warn-soft: #f7ecd8;
+  --bad: #b0463b; --bad-soft: #f6e3e0; --term: #1b2230; --term-ink: #dde3ec; --term-dim: #8b96a8;
+  --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --mono: "IBM Plex Mono", "D2Coding", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #11151b; --surface: #181e26; --sunken: #1f2630; --ink: #e4e8ee; --ink-2: #c2c9d3;
+    --muted: #8f9aa9; --rule: #2b3441; --accent: #86a9e3; --accent-soft: #1f2c42; --good: #6cc39a;
+    --good-soft: #17322a; --warn: #e0ad5c; --warn-soft: #3a2d17; --bad: #e58a7f; --bad-soft: #3b1f1c;
+    --term: #0b0f15; --term-ink: #dde3ec; --term-dim: #7f8a9c;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #11151b; --surface: #181e26; --sunken: #1f2630; --ink: #e4e8ee; --ink-2: #c2c9d3;
+  --muted: #8f9aa9; --rule: #2b3441; --accent: #86a9e3; --accent-soft: #1f2c42; --good: #6cc39a;
+  --good-soft: #17322a; --warn: #e0ad5c; --warn-soft: #3a2d17; --bad: #e58a7f; --bad-soft: #3b1f1c;
+  --term: #0b0f15; --term-ink: #dde3ec; --term-dim: #7f8a9c;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; padding-inline: 16px; background: var(--ground); color: var(--ink);
+  font-family: var(--sans); font-size: 15.5px; line-height: 1.75; word-break: keep-all; overflow-wrap: anywhere; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--sunken); padding: 1px 5px; border-radius: 4px; color: var(--ink-2); }
+h1, h2, h3 { line-height: 1.3; margin: 0; text-wrap: balance; }
+.shell { max-width: 960px; margin: 0 auto; padding: 40px 0 80px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 22px; margin-bottom: 28px; }
+.eyebrow { font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+h1 { font-size: 30px; margin: 6px 0 10px; }
+.lede { color: var(--ink-2); max-width: 720px; margin: 0; }
+section { margin: 44px 0; scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; }
+h2 .no { font-family: var(--mono); font-size: 14px; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 1px 8px; }
+h3 { font-size: 16.5px; margin: 24px 0 8px; }
+p { margin: 8px 0; }
+ul, ol { padding-left: 22px; margin: 8px 0; }
+li { margin: 3px 0; }
+.toc { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 20px; }
+.toc ol { margin: 0; columns: 2; column-gap: 32px; }
+@media (max-width: 640px) { .toc ol { columns: 1; } }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 14px 0; }
+.step { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+.step b { display: block; font-size: 14px; }
+.step .n { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+.step .s { color: var(--muted); font-size: 13.5px; }
+.tw { overflow-x: auto; margin: 12px 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { background: var(--sunken); font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.callout { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.callout.good { border-color: var(--good); background: var(--good-soft); }
+.callout.bad { border-color: var(--bad); background: var(--bad-soft); }
+/* 명령 상자 — 입력(복사 단추)과 화면 출력 */
+.cmd { position: relative; margin: 10px 0; }
+.cmd pre { margin: 0; font-family: var(--mono); font-size: 13.5px; line-height: 1.6; background: var(--term); color: var(--term-ink);
+  padding: 12px 64px 12px 14px; border-radius: 8px; overflow-x: auto; white-space: pre; }
+.cmd pre::before { content: "PS> "; color: var(--term-dim); }
+.cmd button { position: absolute; top: 8px; right: 8px; font: 12px var(--sans); border: 1px solid #3a4558; background: #273142; color: #dde3ec;
+  border-radius: 5px; padding: 3px 9px; cursor: pointer; }
+.cmd button:hover { background: #334058; }
+.out { margin: 6px 0 14px; }
+.out .label { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.out pre { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.55; background: var(--sunken); color: var(--ink-2);
+  padding: 10px 14px; border-radius: 8px; overflow-x: auto; white-space: pre; border: 1px dashed var(--rule); }
+.tree { font-family: var(--mono); font-size: 13.5px; line-height: 1.6; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 16px; overflow-x: auto; white-space: pre; margin: 12px 0; }
+.tree .c { color: var(--muted); }
+.tree .new { color: var(--good); font-weight: 600; }
+.tag { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 10px; background: var(--sunken); color: var(--ink-2); white-space: nowrap; }
+.tag.g { background: var(--good-soft); color: var(--good); }
+.tag.w { background: var(--warn-soft); color: var(--warn); }
+.tag.e { background: var(--bad-soft); color: var(--bad); }
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 16px; margin-top: 50px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="top">
+  <div class="eyebrow">DocParse-rust · 사용 안내 · 2026-11-16 · 라이브러리 0.1.1 (ABI 1)</div>
+  <h1>문서 파서 DLL 빌드하고 CLI 로 시험하기</h1>
+  <p class="lede">이 저장소는 문서(pdf · docx · xlsx · pptx · hwpx · hwp · html · 텍스트 …)에서 <b>본문 텍스트</b>를 뽑고
+  압축(zip · 7z · rar …)을 펼치는 라이브러리 <code>docparse.dll</code> 을 만든다. 이 안내를 위에서부터 따라 하면
+  DLL 을 빌드하고, 함께 만들어지는 시험 프로그램 <code>dp.exe</code> 로 문서를 직접 넣어 결과를 볼 수 있다.
+  명령은 모두 <b>PowerShell</b> 기준이고, 저장소 폴더 <code>D:\Project\DocParse-rust</code> 에서 실행한다.</p>
+</header>
+
+<div class="callout"><b>이름 정리</b> — 라이브러리는 Windows <code>docparse.dll</code> · Linux <code>libdocparse.so</code>,
+시험 프로그램은 Windows <code>dp.exe</code> · Linux <code>dp</code> 다. 크레이트 이름(<code>docparse-ffi</code> · <code>docparse-cli</code>)과
+파일 이름이 다르니 헷갈리지 않게 주의한다.</div>
+
+<nav class="toc" aria-label="목차">
+  <ol>
+    <li><a href="#s1">전체 흐름 한눈에</a></li>
+    <li><a href="#s2">준비물</a></li>
+    <li><a href="#s3">빌드하기</a></li>
+    <li><a href="#s4">실행 파일 옆에 둘 것</a></li>
+    <li><a href="#s5">첫 시험: 버전 · 형식 보기</a></li>
+    <li><a href="#s6">문서 하나 추출 (extract)</a></li>
+    <li><a href="#s7">결과 JSON 읽는 법</a></li>
+    <li><a href="#s8">옵션 바꿔 보기 (정제 · 상한 · 로그)</a></li>
+    <li><a href="#s9">압축 · 정제 · 상한만 (expand · clean · check)</a></li>
+    <li><a href="#s10">여러 문서 한꺼번에 (dump · compare)</a></li>
+    <li><a href="#s11">명령 · 옵션 한 장 요약</a></li>
+    <li><a href="#s12">종료 코드와 오류</a></li>
+    <li><a href="#s13">배포 묶음 · Linux</a></li>
+    <li><a href="#s14">자주 막히는 곳</a></li>
+    <li><a href="#s15">다음 단계</a></li>
+  </ol>
+</nav>
+
+<section id="s1">
+<h2><span class="no">1</span>전체 흐름 한눈에</h2>
+<div class="steps">
+  <div class="step"><span class="n">STEP 1</span><b>준비</b><span class="s">Rust 설치 · 저장소 폴더로 이동</span></div>
+  <div class="step"><span class="n">STEP 2</span><b>빌드</b><span class="s"><code>cargo build --release</code> 한 줄</span></div>
+  <div class="step"><span class="n">STEP 3</span><b>옆에 두기</b><span class="s"><code>pdfium.dll</code> 하나 복사</span></div>
+  <div class="step"><span class="n">STEP 4</span><b>시험</b><span class="s"><code>dp.exe extract 문서</code> 로 본문 보기</span></div>
+</div>
+<p>DLL(<code>docparse.dll</code>)은 다른 프로그램이 불러 쓰는 부품이라 혼자서는 실행되지 않는다.
+그래서 <b>시험 프로그램 <code>dp.exe</code></b> 를 함께 빌드한다. <code>dp.exe</code> 는 DLL 의 C 진입점 소스
+(<code>crates\docparse-ffi\src\lib.rs</code>)를 그대로 넣어 같은 함수(<code>docparse_extract</code> 등)로 문서를 읽는다.
+옵션 JSON 을 만들고 · 결과 JSON 을 받고 · <code>docparse_free</code> 로 돌려주는 과정까지 같으므로,
+<b><code>dp.exe</code> 로 본 결과가 곧 DLL 의 결과</b>다.</p>
+</section>
+
+<section id="s2">
+<h2><span class="no">2</span>준비물</h2>
+<div class="tw"><table>
+<tr><th>필요한 것</th><th>왜</th><th>확인 · 구하는 법</th></tr>
+<tr><td>Windows 10/11 64비트</td><td>이 안내는 Windows x64 기준(Linux 는 <a href="#s13">13장</a>)</td><td>—</td></tr>
+<tr><td>Rust (stable)</td><td>소스를 빌드</td><td><code>cargo --version</code> 이 나오면 된다. 없으면 <a href="https://rustup.rs">rustup.rs</a> 에서 설치(빌드 도구 Visual Studio C++ 도 함께 안내됨)</td></tr>
+<tr><td><code>pdfium.dll</code></td><td>PDF 를 읽는다</td><td><b>저장소에 들어 있다</b> — <code>third_party\pdfium\windows-x64\pdfium.dll</code></td></tr>
+<tr><td>Git Bash (선택)</td><td>배포 묶음을 만드는 <code>scripts\win-build.sh</code></td><td>Git for Windows 에 들어 있다. <code>dp.exe</code> 시험만 할 때는 없어도 된다</td></tr>
+<tr><td>Python 3 (선택)</td><td>배포 묶음 만들기 · 시험 문서 다시 만들기</td><td><code>python --version</code>. 시험 문서 재생성은 <code>pip install pymupdf</code> 도 필요</td></tr>
+</table></div>
+<p>OCR 은 없다 — 스캔 PDF 나 그림 파일의 글자는 읽지 않는다(스캔 PDF 는 "본문 없음"으로 나오고, 그림은 지원 안 함으로 실패한다. <a href="#s6">6장</a>).</p>
+</section>
+
+<section id="s3">
+<h2><span class="no">3</span>빌드하기</h2>
+<p>PowerShell 을 열고 저장소 폴더로 간다.</p>
+<div class="cmd"><pre>cd D:\Project\DocParse-rust</pre><button type="button">복사</button></div>
+<p>전부 빌드한다(DLL + 시험 프로그램). 처음에는 의존 라이브러리를 받아 몇 분 걸리고(이 PC 에서 약 5분), 다음부터는 바뀐 부분만 빌드한다.</p>
+<div class="cmd"><pre>cargo build --release</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">끝에 이렇게 나오면 성공</div><pre>    Finished `release` profile [optimized] target(s) in 4m 41s</pre></div>
+
+<h3>만들어지는 파일</h3>
+<div class="tw"><table>
+<tr><th>파일</th><th>무엇</th></tr>
+<tr><td><code>target\release\docparse.dll</code></td><td><b>배포할 DLL</b>(약 4.1MB). 다른 프로그램이 불러 쓴다</td></tr>
+<tr><td><code>target\release\docparse.dll.lib</code></td><td>C/C++ 에서 링크할 때 쓰는 가져오기 라이브러리(배포 묶음에서는 <code>lib\docparse.lib</code> 로 이름을 바꿔 넣는다)</td></tr>
+<tr><td><code>target\release\dp.exe</code></td><td><b>시험 프로그램</b>(CLI, 약 4.3MB). 이 안내에서 쓰는 것</td></tr>
+<tr><td><code>crates\docparse-ffi\include\docparse.h</code></td><td>C 헤더(함수 11개 · 상태 코드 · 옵션/결과 JSON 모양) — 빌드로 바뀌지 않고 저장소에 들어 있다</td></tr>
+</table></div>
+<p>하나만 따로 빌드하려면:</p>
+<div class="cmd"><pre>cargo build --release -p docparse-ffi</pre><button type="button">복사</button></div>
+<div class="cmd"><pre>cargo build --release -p docparse-cli</pre><button type="button">복사</button></div>
+<p>코드가 제대로 도는지 단위 시험도 돌릴 수 있다. 본체 92개, C 진입점 3개(+ <code>dp</code> 쪽에서 같은 3개), 문서 시험 1개가 모두 통과하면 정상이다.</p>
+<div class="cmd"><pre>cargo test --workspace</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면(요점)</div><pre>test result: ok. 92 passed; 0 failed; …
+test result: ok. 3 passed; 0 failed; …
+test result: ok. 3 passed; 0 failed; …
+test result: ok. 1 passed; 0 failed; …</pre></div>
+</section>
+
+<section id="s4">
+<h2><span class="no">4</span>실행 파일 옆에 둘 것</h2>
+<p>PDF 를 읽으려면 <code>pdfium.dll</code> 이 필요하다. 라이브러리는 <b>DLL(또는 dp.exe)이 있는 폴더 → 실행 파일 폴더 → 시스템</b> 순서로 찾는다.
+그래서 빌드 결과 폴더에 한 번 복사해 둔다(<code>scripts\win-build.sh</code> 를 돌렸다면 이미 복사돼 있다).</p>
+<div class="cmd"><pre>Copy-Item .\third_party\pdfium\windows-x64\pdfium.dll .\target\release\</pre><button type="button">복사</button></div>
+<div class="tree">target\release\
+├─ docparse.dll       <span class="c">← 빌드 결과</span>
+├─ dp.exe             <span class="c">← 빌드 결과</span>
+└─ <span class="new">pdfium.dll</span>         <span class="c">← 복사</span></div>
+<div class="callout">pdfium 을 다른 곳에 두었다면 복사 대신 <code>--pdfium 경로</code> 옵션으로 알려 줄 수 있다(옵션 JSON 의 <code>pdfium_lib</code>).
+pdfium 이 없어도 PDF 가 아닌 문서는 그대로 읽힌다.</div>
+</section>
+
+<section id="s5">
+<h2><span class="no">5</span>첫 시험: 버전 · 형식 보기</h2>
+<div class="cmd"><pre>.\target\release\dp.exe version</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면</div><pre>docparse 0.1.1+1a2b3c4 (abi 1)</pre></div>
+<div class="tw"><table>
+<tr><th>글자</th><th>뜻</th></tr>
+<tr><td><code>0.1.1</code></td><td>라이브러리 버전(<code>crates\docparse-ffi\Cargo.toml</code>)</td></tr>
+<tr><td><code>+1a2b3c4</code></td><td>빌드한 커밋의 git 해시. 커밋 안 된 수정이 있으면 <code>-dirty</code> 가 붙는다(예: <code>+1a2b3c4-dirty</code>) — 이런 빌드는 배포하지 않는다</td></tr>
+<tr><td><code>abi 1</code></td><td>함수 모양 버전 — 부르는 쪽이 아는 값(<code>DOCPARSE_ABI_VERSION</code>)과 같아야 한다</td></tr>
+</table></div>
+
+<p>저장소의 <code>tests\samples\</code> 에 시험용으로 <b>지어낸</b> 문서 10건이 들어 있다
+(docx · xlsx · pptx · md · txt · html · 글자층 PDF · 스캔 PDF · 작은 그림 · zip 압축).
+형식 감지부터 해 본다 — 확장자가 아니라 <b>파일 내용</b>으로 본다.</p>
+<div class="cmd"><pre>.\target\release\dp.exe detect .\tests\samples\보고서_예시.docx .\tests\samples\스캔_예시.pdf .\tests\samples\묶음_예시.zip</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면</div><pre>docx     .\tests\samples\보고서_예시.docx
+pdf      .\tests\samples\스캔_예시.pdf
+zip      .\tests\samples\묶음_예시.zip</pre></div>
+<p>나올 수 있는 이름: <code>pdf</code> · <code>hwp</code> · <code>hwpx</code> · <code>doc</code> · <code>docx</code> · <code>xls</code> · <code>xlsx</code> · <code>ppt</code> · <code>pptx</code> ·
+<code>html</code> · <code>text</code> · <code>image</code> · <code>ole</code> · <code>zip</code> · <code>binary</code> · <code>unknown</code>.</p>
+</section>
+
+<section id="s6">
+<h2><span class="no">6</span>문서 하나 추출 (extract)</h2>
+<p>가장 기본 명령이다. 문서를 넣으면 <b>정제된 본문</b>이 화면에 나오고, 마지막에 요약 한 줄(<code>[dp] …</code>)이 붙는다.</p>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\보고서_예시.docx</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면(앞부분)</div><pre>문서 파서 시험용 보고서
+1. 개요
+이 문서는 구조화 문서 파서를 시험하려고 지어낸 예시 문서다.
+제목, 문단, 목록, 표, 머리글과 꼬리글이 모두 들어 있다.
+2. 처리 절차
+…
+[dp] fmt=docx engine=docx chars=333 4ms</pre></div>
+<div class="tw"><table>
+<tr><th>요약 줄</th><th>뜻</th></tr>
+<tr><td><code>fmt</code></td><td>감지한 형식</td></tr>
+<tr><td><code>engine</code></td><td>실제로 본문을 뽑은 추출기(폴백했으면 감지와 다를 수 있다. 사이냅이면 <code>snf</code>)</td></tr>
+<tr><td><code>chars</code></td><td>본문 글자 수(바이트가 아니라 글자)</td></tr>
+<tr><td><code>ms</code></td><td>걸린 시간</td></tr>
+<tr><td><code>partial=</code></td><td>상한 때문에 <b>앞부분만</b> 읽었을 때만 나온다(<a href="#s8">8장</a>)</td></tr>
+<tr><td><code>layout=</code> · <code>판정=</code></td><td>PDF 일 때 쪽 수 · 그림만 있는 쪽 수, 그리고 스캔 PDF 판정(<code>docparse_scan_pdf_verdict</code>)</td></tr>
+</table></div>
+<div class="callout">요약 줄은 <b>표준 오류</b>로 나가므로, 본문만 파일로 받고 싶으면 <code>&gt;</code> 로 돌려도 요약 줄은 섞이지 않는다.
+다만 PowerShell 의 <code>&gt;</code> 는 파일을 UTF-16 으로 쓰므로, 본문 저장은 아래 <code>--out</code> 을 쓴다(UTF-8 그대로 쓴다).</div>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\보고서_예시.docx --out .\work\result.txt</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면</div><pre>[dp] 저장: .\work\result.txt
+[dp] fmt=docx engine=docx chars=333 4ms</pre></div>
+<p>경로에 띄어쓰기가 있으면 꼭 따옴표로 감싼다. 한글 경로도 그대로 된다. <code>work\</code> 는 git 에 올라가지 않는 작업 폴더다.</p>
+
+<h3>스캔 PDF · 그림 · 없는 파일</h3>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\스캔_예시.pdf</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 성공(0)이지만 본문이 비어 있고, 스캔 PDF 로 판정된다</div><pre>
+[dp] fmt=pdf engine=pdf chars=0 11ms layout={"pages":2,"scan_pages":2} 판정=스캔PDF(처리제외)</pre></div>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\아이콘_작음.png</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 그림은 지원하지 않는다(종료 코드 4)</div><pre>실패(4 DP_ERR_UNSUPPORTED): 지원하지 않는 포맷(감지=image)</pre></div>
+<div class="cmd"><pre>.\target\release\dp.exe extract nofile.docx</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 종료 코드 2. 라이브러리 사유문은 '지원하지 않는 포맷'이라 dp 가 파일 없음을 덧붙인다</div><pre>실패(2 DP_ERR_NOT_FOUND): 지원하지 않는 포맷(감지=unknown) (파일 없음: nofile.docx)</pre></div>
+<div class="callout warn"><b>zip 을 extract 에 넣으면</b> 실패(4)다 — 압축은 본문이 아니라 <b>펼칠 대상</b>이다. 먼저 <code>expand</code> 로 풀고(<a href="#s9">9장</a>), 나온 파일을 extract 한다.</div>
+</section>
+
+<section id="s7">
+<h2><span class="no">7</span>결과 JSON 읽는 법</h2>
+<p><code>--json</code> 을 붙이면 본문 대신 <b>라이브러리가 돌려준 결과 JSON 전체</b>가 나온다. 다른 프로그램이 DLL 에서 받는 것과 똑같다.</p>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\글자층_예시.pdf --json</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면</div><pre>{
+  "engine": "pdf",
+  "fmt": "pdf",
+  "layout": {
+    "pages": 2,
+    "scan_pages": 0
+  },
+  "partial": null,
+  "text": "문서 파서 시험용 PDF\n이 쪽은 글자층이 있는 PDF 의 첫째 쪽이다.\n…"
+}
+[dp] fmt=pdf engine=pdf chars=131 32ms layout={"pages":2,"scan_pages":0}</pre></div>
+<div class="tw"><table>
+<tr><th>필드</th><th>뜻</th></tr>
+<tr><td><code>text</code></td><td>본문(UTF-8). 기본은 6단계 정제를 거친 것, <code>--raw</code> 면 정제 전 원시 텍스트</td></tr>
+<tr><td><code>fmt</code></td><td>감지한(또는 <code>--fmt</code> 로 정한) 형식</td></tr>
+<tr><td><code>engine</code></td><td>실제로 뽑은 추출기 이름</td></tr>
+<tr><td><code>partial</code></td><td><code>null</code> = 다 읽음. 아니면 <code>{"reason","unit","read","total"}</code> — 예: 3000쪽 상한에서 멈춘 PDF</td></tr>
+<tr><td><code>layout</code></td><td>PDF 만 — <code>pages</code>(읽은 쪽) · <code>scan_pages</code>(글자 없이 그림만 있는 쪽)</td></tr>
+</table></div>
+<p>실패하면 같은 자리에 <code>{"error": {"kind", "message", …}}</code> 가 온다. <code>kind</code> 는
+<code>size_limit</code>(크기 상한) · <code>unsupported</code>(지원 안 함) · <code>failed</code>(깨진 파일 · 암호 등) · <code>arg</code>(옵션 오류) · <code>panic</code>(라이브러리 버그) 중 하나다.</p>
+</section>
+
+<section id="s8">
+<h2><span class="no">8</span>옵션 바꿔 보기 (정제 · 상한 · 로그)</h2>
+<h3>정제 끄기 (--raw)</h3>
+<p>기본 본문은 공백 · 빈 줄 · 줄 끝을 다듬은 것이다. 추출기가 뽑은 그대로를 보려면 <code>--raw</code>(옵션 JSON <code>"clean": false</code>).</p>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\웹문서_예시.html --raw</pre><button type="button">복사</button></div>
+
+<h3>상한 바꾸기 (--limit 키=값)</h3>
+<p>크기 · 쪽 수 · 시간 상한을 바꿔 볼 수 있다. 값에 <code>none</code> 을 주면 그 상한을 없앤다. 여러 번 써도 된다.</p>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\글자층_예시.pdf --limit max_pdf_pages=1 --log warn</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 첫 쪽에서 멈추고(partial), 라이브러리 경고 로그가 함께 나온다</div><pre>[dp] WARN [PDF 부분추출] tests/samples/글자층_예시.pdf — 페이지 상한(1p) 에서 중단(pages=1) (docparse::extract:637)
+문서 파서 시험용 PDF
+이 쪽은 글자층이 있는 PDF 의 첫째 쪽이다.
+…
+[dp] fmt=pdf engine=pdf chars=88 36ms partial={"read":1,"reason":"페이지 상한(1p)","total":2,"unit":"pages"} layout={"pages":1,"scan_pages":0}</pre></div>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\점검표_예시.xlsx --limit max_file_bytes=1000</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 크기 상한에 걸리면 깨진 파일과 구분되는 코드 3</div><pre>실패(3 DP_ERR_SIZE_LIMIT): 크기 상한 초과: 5.5KB &gt; 1000B (MAX_FILE_BYTES)</pre></div>
+<div class="tw"><table>
+<tr><th>키</th><th>기본값</th><th>뜻</th></tr>
+<tr><td><code>parser_timeout_secs</code></td><td>60</td><td>문서 하나 추출 시간 상한(넘으면 앞부분만 — partial)</td></tr>
+<tr><td><code>max_pdf_pages</code></td><td>3000</td><td>PDF 쪽 수 상한(넘으면 앞부분만)</td></tr>
+<tr><td><code>max_file_bytes</code></td><td>104857600 (100MB)</td><td>문서 파일 크기 상한(넘으면 실패 3)</td></tr>
+<tr><td><code>max_file_bytes_text</code></td><td>104857600 (100MB)</td><td>텍스트 · html 파일 크기 상한</td></tr>
+<tr><td><code>snf_timeout_secs</code></td><td>60</td><td>사이냅 외부 추출기 시간 상한(<code>none</code> 이어도 기본값 유지)</td></tr>
+<tr><td><code>min_text_len</code></td><td>20</td><td>이보다 짧은 결과는 폴백 추출기 결과와 견줘 본다</td></tr>
+</table></div>
+
+<h3>그 밖의 옵션</h3>
+<div class="tw"><table>
+<tr><th>옵션</th><th>옵션 JSON</th><th>뜻</th></tr>
+<tr><td><code>--fmt docx</code></td><td><code>"fmt"</code></td><td>감지를 건너뛰고 그 형식으로 읽는다(확장자 없는 파일 등)</td></tr>
+<tr><td><code>--engine synap_fallback</code><br><code>--synap-exe 경로</code></td><td><code>"engine"</code> · <code>"synap_exe"</code></td><td>내장 추출기가 실패하면 사이냅 <code>snf_exe</code> 로 다시 뽑는다. <code>synap_only</code> 는 사이냅만. 둘 다 <code>--synap-exe</code> 가 꼭 있어야 한다(없으면 실패 1)</td></tr>
+<tr><td><code>--pdfium 경로</code></td><td><code>"pdfium_lib"</code></td><td>pdfium 라이브러리 파일 위치</td></tr>
+<tr><td><code>--log warn</code></td><td>(<code>docparse_set_logger</code>)</td><td>라이브러리 로그를 표준 오류로 — <code>error</code> · <code>warn</code> · <code>info</code> · <code>debug</code> · <code>trace</code>. 주지 않으면 로그를 버린다</td></tr>
+</table></div>
+</section>
+
+<section id="s9">
+<h2><span class="no">9</span>압축 · 정제 · 상한만 (expand · clean · check)</h2>
+<h3>압축 펼치기 (expand)</h3>
+<p>압축 파일을 <code>--tmp</code> 폴더에 풀고, 추출할 <b>작업 목록</b>을 돌려준다(<code>docparse_expand</code>). 압축 안의 압축도 펼친다(기본 3단계).
+압축이 아닌 파일을 같이 넣으면 그대로 목록에 들어간다.</p>
+<div class="cmd"><pre>.\target\release\dp.exe expand .\tests\samples\묶음_예시.zip --tmp .\work\풀기</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면(요점)</div><pre>{
+  "jobs": [
+    { "label": "./tests/samples/묶음_예시.zip/보고서_예시.docx",
+      "origin": "./tests/samples/묶음_예시.zip", "src": ".\\work\\풀기\\a1" },
+    { "label": "./tests/samples/묶음_예시.zip/문서_예시.md", … "src": ".\\work\\풀기\\a2" },
+    { "label": "./tests/samples/묶음_예시.zip/안쪽_압축.zip/안쪽/평문_예시.txt", … "src": ".\\work\\풀기\\a4" }
+  ],
+  "stats": { "partial": [], "unexpanded": [], "unsupported": [] }
+}
+[dp] 작업 3건 · 못 푼 압축 0 · 지원 안 함 0 · 일부만 0</pre></div>
+<p><code>src</code> 는 풀린 실제 파일(이름에 확장자가 없다 — 형식은 내용으로 감지한다), <code>label</code> 은 사람이 읽는 원래 경로다.
+풀린 파일은 바로 extract 할 수 있다: <code>.\target\release\dp.exe extract .\work\풀기\a1</code>.
+상한은 <code>--max-depth N</code> · <code>--max-bytes N</code> · <code>--max-members N</code>(<code>none</code> = 없음). <code>--tmp</code> 폴더는 dp 가 지우지 않으니 다 보면 직접 지운다.</p>
+
+<h3>정제만 (clean)</h3>
+<p>UTF-8 텍스트 파일을 읽어 extract 와 같은 6단계 정제만 한다(<code>docparse_clean_text</code>).
+정제 전 본문을 <code>--raw</code> 로 저장해 두고 정제해 보면, extract 의 기본 결과와 같아진다(두 줄을 차례로):</p>
+<div class="cmd"><pre>.\target\release\dp.exe extract .\tests\samples\웹문서_예시.html --raw --out .\work\raw.txt</pre><button type="button">복사</button></div>
+<div class="cmd"><pre>.\target\release\dp.exe clean .\work\raw.txt</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 108 글자 원시 텍스트가 91 글자로(앞쪽 빈 줄 · 연달은 빈 줄 · 줄 끝 공백 정리). extract 기본 결과의 chars=91 과 같다</div><pre>웹 문서 예시
+
+이 페이지는 HTML 본문 추출을 시험하려고 지어낸 문서다.
+
+문자 참조도 풀어야 한다: &lt;괄호&gt; &amp; "따옴표" 한글
+…
+[dp] 108 → 91 글자</pre></div>
+
+<h3>크기 상한만 (check)</h3>
+<p>추출하지 않고 "이 파일이 상한에 걸리나"만 본다(<code>docparse_check_size</code>). 걸리면 종료 코드 3.</p>
+<div class="cmd"><pre>.\target\release\dp.exe check .\tests\samples\보고서_예시.docx --limit max_file_bytes=1000</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면</div><pre>{
+  "hit": {
+    "limit": 1000,
+    "reason": "크기 상한 초과: 37.6KB &gt; 1000B (MAX_FILE_BYTES)",
+    "size": 38461,
+    "text_kind": false
+  }
+}</pre></div>
+</section>
+
+<section id="s10">
+<h2><span class="no">10</span>여러 문서 한꺼번에 (dump · compare)</h2>
+<h3>① 목록 만들기</h3>
+<p>메모장으로 한 줄에 문서 경로 하나씩 적어 <code>.txt</code> 로 저장한다(<b>UTF-8</b>). 빈 줄과 <code>#</code> 로 시작하는 줄은 건너뛴다.
+상대 경로는 <code>dp.exe</code> 를 실행한 폴더 기준이다. 저장소에는 시험 문서 10건 목록 <code>tests\samples.txt</code> 가 이미 있다.
+목록 대신 <b>폴더</b>를 주면 안의 파일(하위 폴더 포함)을 이름 순으로 모두 읽는다.</p>
+<p>실제 업무 문서로 시험하려면 <code>tests\private\</code>(git 에 올라가지 않음)에 문서와 목록을 두고 쓴다.
+hwp · hwpx · doc · xls · ppt 는 공개 시험 문서가 없으니 이 폴더에 넣어 시험한다.</p>
+
+<h3>② dump — 문서마다 본문 저장</h3>
+<div class="cmd"><pre>.\target\release\dp.exe dump .\tests\samples.txt .\work\out_a</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 문서마다 걸린 시간 · 형식</div><pre>[1/10]     38ms pdf   글자층_예시.pdf
+[2/10]      1ms 실패(4) 묶음_예시.zip — 지원하지 않는 포맷(감지=zip)
+[3/10]      0ms text  문서_예시.md
+[4/10]      6ms pptx  발표_예시.pptx
+[5/10]      3ms docx  보고서_예시.docx
+[6/10]      3ms pdf   스캔_예시.pdf
+[7/10]      0ms 실패(4) 아이콘_작음.png — 지원하지 않는 포맷(감지=image)
+[8/10]      2ms html  웹문서_예시.html
+[9/10]      1ms xlsx  점검표_예시.xlsx
+[10/10]      0ms text  평문_예시.txt
+끝 — 성공 8 · 실패 2 · 0.1초 → .\work\out_a\index.json</pre></div>
+<div class="tree">work\out_a\
+├─ index.json                     <span class="c">← 번호 ↔ 원래 경로 · rc · fmt · engine · chars · ms · partial · layout · err</span>
+├─ 0000\글자층_예시.pdf.txt        <span class="c">← 목록 첫 줄의 본문</span>
+├─ 0002\문서_예시.md.txt
+└─ …                              <span class="c">(실패한 0001 · 0006 은 폴더가 없다)</span></div>
+<p>실패한 문서는 <code>.txt</code> 가 만들어지지 않는다. <code>index.json</code> 에서 <code>"rc"</code> 가 0 이 아닌 줄과 <code>"err"</code>(사유)를 확인한다.
+dump 는 문서별 실패가 있어도 끝까지 돌고 종료 코드 0 을 낸다. extract 의 옵션(<code>--raw</code> · <code>--limit</code> · <code>--engine</code> …)을 그대로 붙일 수 있다.</p>
+
+<h3>③ compare — 두 결과 비교</h3>
+<p>코드를 고친 뒤 본문이 달라졌는지 볼 때 쓴다. 고치기 전 dump 를 기준으로 두고, 고친 뒤 다시 dump 해서 비교한다.
+여기서는 정제를 끈 결과와 비교해 본다:</p>
+<div class="cmd"><pre>.\target\release\dp.exe dump .\tests\samples.txt .\work\out_b --raw</pre><button type="button">복사</button></div>
+<div class="cmd"><pre>.\target\release\dp.exe compare .\work\out_a .\work\out_b</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면 — 무엇이 어디서 달라졌는지 첫 차이를 보여 준다(⏎ = 줄바꿈)</div><pre>다름  0000 글자층_예시.pdf — 글자 13 에서 갈림 (길이 131 → 138): «파서 시험용 PDF⏎이 쪽은 글자층이 있는 PDF 의 » ≠ «파서 시험용 PDF⏎이 쪽은 글자층이 있는 PDF 의»
+다름  0002 문서_예시.md — 글자 136 에서 갈림 (길이 136 → 137): « 조각 예시⏎```» ≠ « 조각 예시⏎```⏎»
+…
+다름  0009 평문_예시.txt — 글자 24 에서 갈림 (길이 24 → 25): «째 줄	탭 구분	값» ≠ «째 줄	탭 구분	값⏎»
+같음 2 · 다름 8 · 새 쪽에 없음 0 (기준 10건)</pre></div>
+<ul>
+<li>첫 번째 폴더가 <b>기준</b>이다. 번호마다 먼저 <code>rc</code> · <code>fmt</code> · <code>engine</code> 을 견주고(다르면 그것을 이유로 보여 준다), 둘 다 성공이면 본문이 <b>글자 하나까지</b> 같은지 본다.</li>
+<li><code>없음</code> = 기준에는 있는데 새 쪽 <code>index.json</code> 에 그 번호가 없음(목록이 짧아졌을 때).</li>
+<li>걸린 시간(<code>ms</code>)은 비교하지 않는다.</li>
+<li>모두 같으면 <code>같음 N · 다름 0 · 새 쪽에 없음 0</code> 이 나오고 종료 코드 0, 아니면 1.</li>
+</ul>
+<div class="callout good"><b>결과 바뀜 확인</b> — <code>CHANGELOG.md</code> 는 본문이 바뀌는 수정에 "결과 바뀜"을 적는다. 고치기 전 · 후 dump 를 compare 해서
+<code>다름 0</code> 이면 "결과 바뀜 없음", 아니면 달라진 문서를 확인하고 CHANGELOG 에 적는다.</div>
+</section>
+
+<section id="s11">
+<h2><span class="no">11</span>명령 · 옵션 한 장 요약</h2>
+<div class="tw"><table>
+<tr><th>명령</th><th>하는 일</th><th>C 함수</th></tr>
+<tr><td><code>dp version</code></td><td>버전 · ABI 보기</td><td><code>docparse_version</code> · <code>docparse_abi_version</code></td></tr>
+<tr><td><code>dp detect &lt;파일...&gt;</code></td><td>형식 감지</td><td><code>docparse_detect</code></td></tr>
+<tr><td><code>dp extract &lt;파일&gt;</code></td><td>본문(화면 또는 <code>--out</code>), <code>--json</code> 이면 결과 JSON</td><td><code>docparse_extract</code></td></tr>
+<tr><td><code>dp check &lt;파일&gt;</code></td><td>크기 상한만 검사</td><td><code>docparse_check_size</code></td></tr>
+<tr><td><code>dp expand &lt;압축...&gt; --tmp &lt;폴더&gt;</code></td><td>압축 펼치기 → 작업 목록 JSON</td><td><code>docparse_expand</code></td></tr>
+<tr><td><code>dp clean &lt;텍스트파일&gt;</code></td><td>6단계 정제만</td><td><code>docparse_clean_text</code></td></tr>
+<tr><td><code>dp dump &lt;목록.txt|폴더&gt; &lt;폴더&gt;</code></td><td>목록의 문서마다 본문 저장 + <code>index.json</code></td><td><code>docparse_extract</code></td></tr>
+<tr><td><code>dp compare &lt;기준폴더&gt; &lt;새폴더&gt;</code></td><td>두 dump 결과 비교</td><td>—</td></tr>
+</table></div>
+<div class="tw"><table>
+<tr><th>옵션</th><th>뜻</th><th>쓰는 명령</th></tr>
+<tr><td><code>--json</code></td><td>결과 JSON 전체를 낸다</td><td>extract</td></tr>
+<tr><td><code>--raw</code></td><td>정제 끄기(<code>clean: false</code>)</td><td>extract · dump</td></tr>
+<tr><td><code>--fmt F</code></td><td>감지 건너뛰고 그 형식으로</td><td>extract · dump · check</td></tr>
+<tr><td><code>--engine E</code> · <code>--synap-exe 경로</code></td><td>builtin(기본) · synap_fallback · synap_only</td><td>extract · dump</td></tr>
+<tr><td><code>--pdfium 경로</code></td><td>pdfium 라이브러리 위치</td><td>extract · dump</td></tr>
+<tr><td><code>--limit 키=값</code></td><td>상한 바꾸기(<code>none</code> = 없음), 여러 번 가능</td><td>extract · dump · check</td></tr>
+<tr><td><code>--tmp 폴더</code></td><td>풀 폴더(꼭 필요)</td><td>expand</td></tr>
+<tr><td><code>--max-depth</code> · <code>--max-bytes</code> · <code>--max-members N</code></td><td>압축 상한</td><td>expand</td></tr>
+<tr><td><code>--out 파일</code></td><td>결과를 파일로(UTF-8)</td><td>extract · expand · clean</td></tr>
+<tr><td><code>--log 레벨</code></td><td>라이브러리 로그를 표준 오류로</td><td>모두</td></tr>
+<tr><td><code>-h</code> · <code>--help</code></td><td>사용법</td><td>모두</td></tr>
+</table></div>
+</section>
+
+<section id="s12">
+<h2><span class="no">12</span>종료 코드와 오류</h2>
+<p>실패하면 화면에 <code>실패(코드 이름): 사유</code> 가 나온다. extract · check · detect · expand · clean 의 종료 코드는 <b>라이브러리 상태 코드 그대로</b>다
+(<code>docparse.h</code> 의 <code>dp_status</code>). 그래서 배치 파일에서 <code>$LASTEXITCODE</code> 로 바로 가를 수 있다.</p>
+<div class="tw"><table>
+<tr><th>코드</th><th>이름</th><th>뜻 · 할 일</th></tr>
+<tr><td>0</td><td><code>DP_OK</code></td><td>성공 <span class="tag g">본문이 비어 있어도 성공일 수 있다 — 스캔 PDF</span></td></tr>
+<tr><td>1</td><td><code>DP_ERR_ARG</code></td><td>잘못된 인자 · 옵션(예: <code>--engine synap_only</code> 인데 <code>--synap-exe</code> 없음). dp 자체의 사용법 오류도 1 — 철자 확인</td></tr>
+<tr><td>2</td><td><code>DP_ERR_NOT_FOUND</code></td><td>파일 없음 — 경로 · 따옴표 확인</td></tr>
+<tr><td>3</td><td><code>DP_ERR_SIZE_LIMIT</code></td><td>크기 상한 초과 — 깨진 파일이 아니다. 필요하면 <code>--limit</code> 로 올린다</td></tr>
+<tr><td>4</td><td><code>DP_ERR_UNSUPPORTED</code></td><td>지원하지 않는 형식(그림 · zip · 알 수 없는 바이너리)</td></tr>
+<tr><td>5</td><td><code>DP_ERR_FAILED</code></td><td>읽을 수 없는 문서(깨진 파일 · 암호 걸린 문서 등). PDF 가 전부 5 면 pdfium 위치부터 확인(<a href="#s14">14장</a>)</td></tr>
+<tr><td>99</td><td><code>DP_ERR_PANIC</code></td><td>라이브러리 안 오류(프로그램은 죽지 않음) — 그 문서를 알려 주면 고친다</td></tr>
+</table></div>
+<p>나머지: <code>compare</code> 는 모두 같으면 0 · 다르면 1, <code>dump</code> 는 항상 0(문서별 결과는 <code>index.json</code>), <code>version</code> 은 ABI 가 1 이 아니면 1.</p>
+</section>
+
+<section id="s13">
+<h2><span class="no">13</span>배포 묶음 · Linux</h2>
+<p>배포 묶음은 스크립트가 시험까지 한 번에 하고 만든다(Git Bash 에서).</p>
+<div class="cmd"><pre>bash scripts/win-build.sh</pre><button type="button">복사</button></div>
+<div class="out"><div class="label">화면</div><pre>── 시험 ──
+── 릴리스 빌드 (0.1.1+1a2b3c4) ──
+── 불러 보기 ──
+   0.1.1+1a2b3c4 &lt;Extracted engine=text fmt=text chars=14 partial=None layout=None&gt;
+   docparse 0.1.1+1a2b3c4 (abi 1)
+── 묶기 ──
+D:\Project\DocParse-rust\dist\docparse-0.1.1-1a2b3c4-windows-x64.zip
+D:\Project\DocParse-rust\dist\docparse-windows-x64.zip</pre></div>
+<p><code>cargo test</code> → DLL · dp.exe 빌드 → Python 감싸개와 dp.exe 로 같은 버전 · 추출 확인 → 묶기 순서다. 묶음의 <code>lib\</code> 에 <code>dp.exe</code> 가 pdfium 옆에 들어가므로,
+묶음을 풀자마자 <code>lib\dp.exe extract 문서</code> 로 그 묶음의 DLL 과 같은 코드를 시험할 수 있다.</p>
+<div class="tree">docparse-0.1.1-1a2b3c4-windows-x64\
+├─ lib\docparse.dll · pdfium.dll · docparse.lib · <span class="new">dp.exe</span>
+├─ include\docparse.h
+├─ python\ · rust\ · java\ · php\ · c\     <span class="c">← 감싸개 · 예제</span>
+└─ doc\docparse-guide.html · <span class="new">build-cli-guide.html</span>   <span class="c">← 이 안내</span></div>
+<p><b>Linux</b> 는 빌드서버(CentOS 7)에서 만든다 — <code>scripts\server.env</code> 가 필요하다(<code>server.env.sample</code> 참고).</p>
+<div class="cmd"><pre>bash scripts/linux-build.sh</pre><button type="button">복사</button></div>
+<p><code>libdocparse.so</code> 와 <code>dp</code> 를 함께 빌드해 받아 오고, 둘 다 요구 glibc 가 2.17 이하인지 화면에 찍는다.
+Linux 묶음에서는 <code>lib/dp extract 문서</code> 로 시험한다(명령 · 옵션은 Windows 와 같다).</p>
+</section>
+
+<section id="s14">
+<h2><span class="no">14</span>자주 막히는 곳</h2>
+<div class="tw"><table>
+<tr><th>증상</th><th>원인</th><th>해결</th></tr>
+<tr><td><code>cargo</code> 를 찾을 수 없음</td><td>Rust 미설치 또는 PATH 미반영</td><td>rustup 설치 후 PowerShell 을 새로 연다</td></tr>
+<tr><td>빌드 중 <code>link.exe</code> 오류</td><td>Visual Studio C++ 빌드 도구 없음</td><td>"Visual Studio Build Tools"의 C++ 데스크톱 개발 설치</td></tr>
+<tr><td>빌드 중 "액세스가 거부되었습니다"</td><td><code>dp.exe</code> · DLL 을 쓰는 프로그램이 켜져 있음</td><td>그 프로그램을 닫고 다시 빌드</td></tr>
+<tr><td>PDF 가 모두 실패(5), 사유가 비어 있음<br><small>(dp 는 "사유 없음 — … pdfium 을 찾지 못한 것" 안내를 붙인다)</small></td><td><code>pdfium.dll</code> 이 dp.exe 옆에 없음 — 라이브러리는 내장 추출기 실패 사유를 비워 둔다</td><td><a href="#s4">4장</a>대로 복사, 또는 <code>--pdfium 경로</code></td></tr>
+<tr><td>PDF 가 성공인데 본문이 비어 있음</td><td>스캔(그림) PDF — 글자층이 없다</td><td>요약 줄의 <code>판정=스캔PDF(처리제외)</code> 확인. 이 라이브러리는 OCR 을 하지 않는다</td></tr>
+<tr><td>목록의 한글 경로가 "파일 없음"(2)</td><td>목록 파일이 UTF-8 이 아님</td><td>메모장 "다른 이름으로 저장" → 인코딩 UTF-8</td></tr>
+<tr><td><code>&gt;</code> 로 저장한 본문이 깨져 보임</td><td>PowerShell 5 의 <code>&gt;</code> 는 UTF-16 으로 쓴다</td><td><code>--out 파일</code> 로 저장한다</td></tr>
+<tr><td>화면 한글이 깨짐</td><td>콘솔 글꼴 · 코드 페이지</td><td><code>--out</code> 으로 파일에 저장해 편집기로 본다</td></tr>
+<tr><td>버전에 <code>-dirty</code> 가 붙음</td><td>커밋 안 된 수정이 있는 채로 빌드</td><td>시험은 괜찮다. 배포 · 릴리스 전에는 커밋하고 다시 빌드</td></tr>
+</table></div>
+</section>
+
+<section id="s15">
+<h2><span class="no">15</span>다음 단계</h2>
+<ul>
+<li><b>다른 프로그램에서 DLL 쓰기</b> — 언어별 방법은 <code>doc\docparse-라이브러리-연동설명서.html</code>(Python · Rust · Java · PHP · C).
+  C/C++ 는 <code>crates\docparse-ffi\include\docparse.h</code>, 파이썬은 <code>bindings\python\docparse.py</code>(ctypes 감싸개)를 쓴다.</li>
+<li><b>코드를 고친 뒤</b> — <code>dump</code> 로 고치기 전 · 후 본문을 뽑아 <code>compare</code> 로 달라진 곳만 확인한다(<a href="#s10">10장</a>).</li>
+<li><b>시험 문서 다시 만들기</b> — <code>python tools\make_samples.py</code>(글자층 PDF · HTML · ZIP. <code>pip install pymupdf</code> 필요).</li>
+<li><b>릴리스</b> — 묶음 4개(버전 붙은 zip · tgz, 버전 없는 zip · tgz)를 GitHub 릴리스에 올린다(<code>README.md</code> "내려받기").</li>
+</ul>
+</section>
+
+<footer>DocParse-rust 0.1.1 · 화면 예시는 2026-11-16 이 저장소에서 실제로 실행한 결과다(긴 출력은 줄이고, git 해시는 <code>1a2b3c4</code> 로 바꿔 적었다).</footer>
+</div>
+
+<script>
+// 명령 상자의 [복사] 단추 — 명령 글을 클립보드로
+document.querySelectorAll('.cmd button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var t = b.parentElement.querySelector('pre').textContent;
+    var done = function () { b.textContent = '복사됨'; setTimeout(function () { b.textContent = '복사'; }, 1200); };
+    try { navigator.clipboard.writeText(t).then(done, done); } catch (e) { done(); }
+  });
+});
+</script>
+</body>
+</html>

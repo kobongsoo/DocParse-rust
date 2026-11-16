@@ -1,0 +1,19 @@
+[package]
+name = "docparse-cli"
+# 버전은 docparse-ffi 와 같게 둔다 — dp version 이 이 값을 라이브러리 버전으로 보여 준다.
+version = "0.1.1"
+edition = "2021"
+description = "dp.exe — docparse 시험 도구. DLL 과 같은 C 진입점 소스를 그대로 넣어 문서를 읽는다."
+# FFI 와 같은 빌드 스크립트 — 버전 문자열의 git 해시(DOCPARSE_GIT)를 똑같이 새긴다.
+build = "../docparse-ffi/build.rs"
+
+[[bin]]
+name = "dp"
+path = "src/main.rs"
+
+[dependencies]
+# FFI 소스(crates/docparse-ffi/src/lib.rs)를 모듈로 그대로 넣으므로 그쪽 의존을 똑같이 둔다.
+# (FFI 크레이트를 rlib 으로 붙이면 본체와 라이브러리 이름 'docparse' 가 겹쳐 cargo 가 경고한다.)
+docparse = { path = "../docparse", features = ["archive", "synap"] }
+serde_json = "1"
+log = "0.4"
