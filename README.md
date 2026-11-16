@@ -122,6 +122,84 @@ $r = DocParse::load()->extract('보고서.hwp', ['clean' => true]);
 pdfium 은 옵션 `pdfium_lib` → **이 라이브러리 파일이 있는 폴더** → 실행파일 폴더 → 시스템 순으로 찾습니다.
 Python 이 불러 쓰면 실행파일은 python.exe 이므로, pdfium 을 docparse 라이브러리 옆에 두면 됩니다.
 
+## dp.exe 로 시험하기
+
+`dp.exe`(Linux `dp`)는 DLL 과 같은 C 진입점을 그대로 거쳐 문서를 읽는 시험 도구입니다. 배포 묶음을 풀면 `lib/` 에
+`pdfium` 옆에 들어 있어 바로 돕니다(저장소에서 빌드했다면 `target/release/dp.exe`, `pdfium.dll` 을 옆에 복사).
+아래는 묶음을 푼 폴더에서 PowerShell 로 실행하는 예입니다. 자세한 설명·화면은 `doc/빌드_CLI시험_설명서.html`(묶음 안 `doc/build-cli-guide.html`).
+
+### 버전 · 형식
+
+```powershell
+.\lib\dp.exe version                         # docparse 0.1.2+34fc2c2 (abi 1)
+.\lib\dp.exe detect 보고서.hwp 자료.zip 그림.png   # 파일 내용으로 감지: hwp / zip / image
+```
+
+### 본문 뽑기
+
+```powershell
+.\lib\dp.exe extract 보고서.docx                       # 본문은 화면, 요약 한 줄은 표준 오류
+#   … 본문 …
+#   [dp] fmt=docx engine=docx chars=333 4ms
+.\lib\dp.exe extract 보고서.docx --out 결과.txt         # 본문을 UTF-8 파일로 (PowerShell 의 > 는 UTF-16 이라 비추천)
+.\lib\dp.exe extract 보고서.pdf --json                  # 라이브러리 결과 JSON 전체 (text · fmt · engine · partial · layout)
+.\lib\dp.exe extract 보고서.pdf --raw                   # 6단계 정제 전 원시 텍스트
+.\lib\dp.exe extract 확장자없는파일 --fmt hwp            # 감지를 건너뛰고 그 형식으로
+```
+
+스캔(그림) PDF 는 성공(0)이지만 본문이 비고, 요약 줄에 판정이 붙습니다:
+
+```
+[dp] fmt=pdf engine=pdf chars=0 11ms layout={"pages":2,"scan_pages":2} 판정=스캔PDF(처리제외)
+```
+
+### 상한 · 로그 · 사이냅
+
+```powershell
+.\lib\dp.exe extract 큰문서.pdf --limit max_pdf_pages=10 --log warn    # 10쪽에서 멈춤 → partial={…}, 경고 로그도 보임
+.\lib\dp.exe extract 큰문서.pdf --limit parser_timeout_secs=none       # 시간 상한 없애기 (none = 상한 없음)
+.\lib\dp.exe check   큰파일.xlsx --limit max_file_bytes=1000000        # 추출 없이 크기 상한만 (걸리면 종료 코드 3)
+.\lib\dp.exe extract 보고서.hwp --engine synap_fallback --synap-exe C:\Synap\snf_exe.exe   # 내장 실패 시 사이냅으로
+```
+
+`--limit` 키: `parser_timeout_secs`(60) · `max_pdf_pages`(3000) · `max_file_bytes`(100MB) · `max_file_bytes_text`(100MB) · `snf_timeout_secs`(60) · `min_text_len`(20). 여러 번 써도 됩니다.
+
+### 압축 · 정제
+
+```powershell
+.\lib\dp.exe expand 자료.zip --tmp .\풀기               # 안쪽 압축까지 풀고 작업 목록 JSON (jobs[].src 를 extract)
+.\lib\dp.exe extract .\풀기\a1                          # 풀린 파일(확장자 없음 — 내용으로 감지)
+.\lib\dp.exe clean 원시.txt --out 정제.txt              # 텍스트 파일을 6단계 정제만
+```
+
+### 여러 문서 · 고치기 전후 비교
+
+```powershell
+.\lib\dp.exe dump 목록.txt .\out_before                 # 목록(한 줄에 경로 하나, UTF-8) 또는 폴더
+#   [1/3]     38ms pdf   보고서.pdf
+#   [2/3]      1ms 실패(4) 그림.png — 지원하지 않는 포맷(감지=image)
+#   끝 — 성공 2 · 실패 1 · 0.1초 → .\out_before\index.json
+.\lib\dp.exe dump 목록.txt .\out_after                  # 라이브러리를 바꾼 뒤 다시
+.\lib\dp.exe compare .\out_before .\out_after           # 같으면 종료 코드 0, 다르면 1
+#   다름  0000 보고서.pdf — 글자 13 에서 갈림 (길이 131 → 138): «…» ≠ «…»
+#   같음 1 · 다름 1 · 새 쪽에 없음 0 (기준 3건)
+```
+
+`index.json` 에 문서마다 `rc` · `fmt` · `engine` · `chars` · `ms` · `partial` · `err` 가 남습니다. CHANGELOG 의 "결과 바뀜" 여부는 이 compare 로 확인합니다.
+
+### 종료 코드로 가르기 (배치)
+
+종료 코드는 라이브러리 상태 코드 그대로입니다 — 0 성공 · 1 인자 오류 · 2 파일 없음 · 3 크기 상한 · 4 지원 안 함 · 5 실패 · 99 내부 오류.
+
+```powershell
+Get-ChildItem .\문서 -File | ForEach-Object {
+    .\lib\dp.exe extract $_.FullName --out ".\결과\$($_.Name).txt" 2>$null
+    if ($LASTEXITCODE -ne 0) { "$LASTEXITCODE  $($_.Name)" }      # 실패한 것만 코드와 이름
+}
+```
+
+Linux 는 경로 구분자만 바꿔 `./lib/dp extract 보고서.docx` 처럼 씁니다(명령 · 옵션은 같습니다).
+
 ## 버전 규칙
 
 - `DOCPARSE_ABI_VERSION` 은 함수 모양이 바뀔 때만 올린다. 감싸개는 불러온 직후 비교하고 다르면 멈춘다.
