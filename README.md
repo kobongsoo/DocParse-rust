@@ -14,14 +14,18 @@
 
 빌드한 배포 묶음은 GitHub 릴리스에 올립니다 → **[최신 릴리스](https://github.com/kobongsoo/DocParse-rust/releases/latest)** · [전체 릴리스 목록](https://github.com/kobongsoo/DocParse-rust/releases)
 
-현재 판 0.1.1:
+최신 판 바로 받기(링크는 새 릴리스를 올리면 저절로 그 판을 가리킵니다):
 
 | 플랫폼 | 파일 |
 |---|---|
-| Windows x64 | [docparse-0.1.1-24fad68-windows-x64.zip](https://github.com/kobongsoo/DocParse-rust/releases/download/v0.1.1/docparse-0.1.1-24fad68-windows-x64.zip) |
-| Linux x64 (glibc 2.17+) | [docparse-0.1.1-24fad68-linux-x64.tgz](https://github.com/kobongsoo/DocParse-rust/releases/download/v0.1.1/docparse-0.1.1-24fad68-linux-x64.tgz) |
+| Windows x64 | [docparse-windows-x64.zip](https://github.com/kobongsoo/DocParse-rust/releases/latest/download/docparse-windows-x64.zip) |
+| Linux x64 (glibc 2.17+) | [docparse-linux-x64.tgz](https://github.com/kobongsoo/DocParse-rust/releases/latest/download/docparse-linux-x64.tgz) |
 
-풀어서 `lib/` 폴더를 그대로 쓰면 됩니다. 파일 확인은 묶음 안 `SHA256SUMS` 로 합니다.
+풀어서 `lib/` 폴더를 그대로 쓰면 됩니다. 정확한 판은 묶음 안 `VERSION`, 파일 확인은 `SHA256SUMS` 로 합니다.
+특정 판이 필요하면 릴리스 목록에서 `docparse-<버전>-<해시>-<플랫폼>` 이름의 파일을 받으세요.
+
+릴리스 올릴 때: `package.py` 가 `dist/` 에 버전 붙은 묶음과 버전 없는 이름(`docparse-<플랫폼>.zip/.tgz`)을
+함께 만듭니다. 위 링크가 동작하려면 **네 파일을 모두** 릴리스에 올립니다.
 
 ## 구조
 

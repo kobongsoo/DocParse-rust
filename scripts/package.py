@@ -6,6 +6,9 @@
 #       Windows 는 C/C++ 링크용 가져오기 라이브러리 docparse.lib 도 lib/ 에 넣는다
 #    2) VERSION · CHANGELOG.md · README.md · SHA256SUMS 를 넣는다
 #    3) windows-x64 는 zip, linux-x64 는 tgz 로 묶는다
+#    4) 같은 묶음을 버전 없는 이름 docparse-<플랫폼>.zip / .tgz 로도 복사한다.
+#       릴리스에 이 이름도 함께 올리면 README 의 releases/latest/download/... 링크가
+#       README 를 고치지 않아도 늘 최신 판을 가리킨다.
 #   표준 라이브러리만 쓴다(윈도우 git bash · 리눅스 어디서나 돈다).
 #
 #   사용: python scripts/package.py <windows-x64|linux-x64> <라이브러리 파일> <버전>
@@ -68,13 +71,13 @@ def sha256(path):
 
 #------------------------------------------------------------------
 # 묶음 만들기 본체
-#=> 위 머리말의 1)~3) 을 한다. 같은 이름의 옛 묶음은 지우고 새로 만든다.
+#=> 위 머리말의 1)~4) 를 한다. 같은 이름의 옛 묶음은 지우고 새로 만든다.
 #
 # -in: plat    = "windows-x64" | "linux-x64"
 # -in: lib     = 빌드된 라이브러리 파일 경로
 # -in: version = 버전 문자열(예: "0.1.0+abc1234")
 #
-# -out: str = 만든 묶음 파일 경로
+# -out: (arc, latest) = (버전 붙은 묶음 파일 경로, 버전 없는 이름의 복사본 경로)
 # -out: error = 플랫폼을 모르거나 파일이 없으면 SystemExit
 #------------------------------------------------------------------
 def build(plat, lib, version):
@@ -141,10 +144,19 @@ def build(plat, lib, version):
         arc = out + ".tgz"
         with tarfile.open(arc, "w:gz") as t:
             t.add(out, arcname=name)
-    return arc
+    # GitHub 의 releases/latest/download/<이름> 은 이름이 판마다 같아야 늘 최신을 가리킨다.
+    # 그래서 버전·해시를 뺀 이름으로 한 벌 더 둔다(내용은 위 묶음과 바이트 단위로 같다).
+    latest = os.path.join(ROOT, "dist", "docparse-%s%s" % (plat, os.path.splitext(arc)[1]))
+    shutil.copy2(arc, latest)
+    return arc, latest
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         raise SystemExit("사용: python scripts/package.py <windows-x64|linux-x64> <라이브러리 파일> <버전>")
-    print(build(sys.argv[1], sys.argv[2], sys.argv[3]))
+    arc, latest = build(sys.argv[1], sys.argv[2], sys.argv[3])
+    print(arc)
+    print(latest)
+    # 커밋 안 된 수정으로 만든 묶음은 릴리스에 올리면 안 된다는 것을 눈에 띄게 알린다.
+    if "dirty" in sys.argv[3] or "nogit" in sys.argv[3]:
+        print("[주의] 커밋되지 않은 상태의 빌드입니다(%s). 릴리스에 올리지 마세요" % sys.argv[3])
