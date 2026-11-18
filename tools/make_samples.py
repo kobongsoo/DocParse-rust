@@ -100,7 +100,7 @@ def make_zip(path):
 #------------------------------------------------------------------
 # 주석 PDF 만들기 — 본문 밖 글(extra_text) 시험용
 #=> 그림 한 장으로 덮은 3쪽(스캔 쪽 꼴)에 여러 종류의 주석을 얹는다. 쪽 본문 글자는 없다.
-#    1쪽: 글상자 2개(읽힘) · 숨긴 글상자 1개(안 읽힘) · 쪽지 1개(안 읽힘)
+#    1쪽: 글상자 2개(읽힘) · 숨긴 글상자 1개(읽힘 — 사이냅과 같게) · 쪽지 1개(안 읽힘)
 #    2쪽: 글 서식 칸 1개(값 읽힘) · 체크 상자 1개(안 읽힘)
 #    3쪽: 도장 1개(글 없음)
 #
@@ -124,8 +124,8 @@ def make_annot_pdf(path):
         a = p1.add_freetext_annot(pymupdf.Rect(60, 100 + i * 50, 420, 130 + i * 50), t,
                                   fontsize=11, fontname="korea")
         a.update()
-    # 숨긴 글상자 — 화면에 안 보이므로 읽지 않아야 한다
-    hid = p1.add_freetext_annot(pymupdf.Rect(60, 300, 420, 330), "숨긴 글상자는 읽지 않는다",
+    # 숨긴 글상자 — 화면에는 안 보이지만 사이냅이 읽으므로 docparse 도 읽는다(0.2.0)
+    hid = p1.add_freetext_annot(pymupdf.Rect(60, 300, 420, 330), "숨긴 글상자도 읽는다",
                                 fontsize=11, fontname="korea")
     hid.set_flags(pymupdf.PDF_ANNOT_IS_HIDDEN)
     hid.update()

@@ -678,8 +678,8 @@ fn pdf_text(path: &Path, run: &Run) -> Option<String> {
 // PDF 한 쪽의 본문 밖 글 — 글상자 주석 · 서식 칸 값
 //=> pdfium 의 글자 추출(page.text())은 쪽 본문만 읽고 주석은 읽지 않는다. 사이냅은 읽는다.
 //   그래서 화면에 보이는 두 가지를 따로 읽어 붙인다(설계 §5·§6).
-//    1) FreeText(글상자) 주석 — /Contents 글. 숨김(Hidden) 표시가 있으면 건너뛴다
-//       (사이냅은 읽지만, 안 보이는 글을 분류 근거로 쓰지 않는다)
+//    1) FreeText(글상자) 주석 — /Contents 글. 숨김(Hidden) 표시가 있어도 읽는다
+//       (사이냅이 읽으므로 두 판 본문을 맞춘다. 숨겨 둔 글도 문서에 든 글이다)
 //    2) Widget(서식 칸) — 글 칸 · 콤보 상자의 값. 빈 값 · 체크 상자 · 단추는 건너뛴다
 //   쪽지(Text) · Popup · Stamp 등 그 밖의 주석은 읽지 않는다(접힌 검토 의견 · 그림).
 //   주석마다 한 줄씩, 주석 차례대로 붙인다. 앞에 표식을 달지 않는다(사이냅과 같은 모양).
@@ -694,7 +694,8 @@ fn pdf_page_extra(page: &pdfium_render::prelude::PdfPage, out: &mut String) {
     use pdfium_render::prelude::*;
     for annot in page.annotations().iter() {
         let text = match annot.annotation_type() {
-            PdfPageAnnotationType::FreeText if !annot.is_hidden() => annot.contents(),
+            // 숨긴 글상자도 읽는다 — 사이냅과 같은 글을 읽기 위해
+            PdfPageAnnotationType::FreeText => annot.contents(),
             PdfPageAnnotationType::Widget if !annot.is_hidden() => annot
                 .as_widget_annotation()
                 .and_then(|w| w.form_field())
@@ -2589,14 +2590,14 @@ mod extra_layout_tests {
         }
     }
 
-    // C(PDF): 글상자 · 서식 칸은 읽고, 숨긴 글상자 · 쪽지 · 체크 상자는 안 읽는다. 쪽 판정은 그대로
+    // C(PDF): 글상자(숨긴 것 포함) · 서식 칸은 읽고, 쪽지 · 체크 상자는 안 읽는다. 쪽 판정은 그대로
     #[test]
     fn pdf_본문밖_글() {
         let on = extract(&sample("주석_예시.pdf"), &opts(Engine::Builtin, true)).unwrap();
-        for want in ["(2026년 시험기관 자료)", "주석으로 덧붙인 설명 글", "서식 칸에 적은 값"] {
+        for want in ["(2026년 시험기관 자료)", "주석으로 덧붙인 설명 글", "숨긴 글상자도 읽는다", "서식 칸에 적은 값"] {
             assert!(on.text.contains(want), "{} 가 없다: {:?}", want, on.text);
         }
-        for not in ["숨긴 글상자", "쪽지 주석"] {
+        for not in ["쪽지 주석"] {
             assert!(!on.text.contains(not), "{} 가 나오면 안 된다: {:?}", not, on.text);
         }
         let off = extract(&sample("주석_예시.pdf"), &opts(Engine::Builtin, false)).unwrap();

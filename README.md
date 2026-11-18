@@ -150,7 +150,7 @@ Python 이 불러 쓰면 실행파일은 python.exe 이므로, pdfium 을 docpar
 ```
 
 0.2.0 부터 **본문 밖 글**도 기본으로 읽습니다 — PDF 글상자(FreeText) 주석 · PDF 서식 칸 값 · docx 메모 · docx/pptx SmartArt.
-사이냅은 읽는데 docparse 는 놓치던 '화면에 보이는 글'입니다. 숨긴 글상자 · PDF 쪽지 주석은 읽지 않습니다.
+사이냅은 읽는데 docparse 는 놓치던 글입니다. 숨김 표시가 있는 글상자도 사이냅처럼 읽고, PDF 쪽지 주석은 둘 다 읽지 않습니다.
 옵션 `"extra_text": false`(dp `--no-extra-text`)로 끕니다. 설계: `plan/PDF-layout보존-본문밖글읽기-설계-20261118.html`.
 
 스캔(그림) PDF 는 성공(0)이지만 본문이 비고, 요약 줄에 판정이 붙습니다:

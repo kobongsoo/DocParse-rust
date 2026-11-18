@@ -99,7 +99,7 @@ small { color: var(--muted); }
   <p class="lede">사이냅 폴백 모드에서 스캔 PDF 의 <b>페이지 구성(layout)</b>이 사라져 처리제외 판정이 빠지는 문제(A · B)를 고치고,
   사이냅은 읽는데 docparse 는 읽지 않던 <b>본문 밖 글</b>(PDF 글상자 주석 · PDF 서식 칸 값 · Word 메모 · SmartArt)을 기본으로 읽게 한다(C).
   고칠 곳은 이 저장소의 <code>crates\docparse</code> · <code>crates\docparse-ffi</code> · 감싸개 4종이고, 결과를 쓰는 MpowerClassify 쪽 후속은 <a href="#s9">9장</a>에 따로 적는다.</p>
-  <p class="lede"><small>개정 1(2026-11-18) — C 를 'PDF 주석 읽기 · 기본 끔'에서 '본문 밖 글 읽기 · 기본 켬'으로 넓혔다. 근거: 이 PC 의 사이냅(snf_exe 4.29.0)과 직접 비교한 결과(<a href="#s5">5장</a>).</small></p>
+  <p class="lede"><small>개정 1(2026-11-18) — C 를 'PDF 주석 읽기 · 기본 끔'에서 '본문 밖 글 읽기 · 기본 켬'으로 넓혔다. 근거: 이 PC 의 사이냅(snf_exe 4.29.0)과 직접 비교한 결과(<a href="#s5">5장</a>).<br>개정 2(2026-11-18) — 숨김 표시가 있는 PDF 글상자도 사이냅처럼 읽는다(<a href="#s6">6장</a> · <a href="#s11">11장</a>).</small></p>
 </header>
 
 <div class="callout good"><b>요약</b>
@@ -107,7 +107,7 @@ small { color: var(--muted); }
 <li><b>A</b> — 사이냅으로 넘어갈 때 '부분 추출' 표식만 지우고 <b>layout 은 남긴다</b>. Python 판 <code>notes.py</code> 와 같은 규칙. 사이냅이 이기거나 짧은 결과를 채택한 문서에도 layout 이 붙는다.</li>
 <li><b>B</b> — 모든 엔진이 실패해도 PDF 파서가 잰 layout 을 <b>오류에 싣는다</b>(오류 JSON 에 <code>"layout"</code> 키 추가). 1.pdf 처럼 사이냅도 못 읽은 스캔 PDF 를 부른 쪽이 처리제외로 가를 수 있다.</li>
 <li><b>C</b> — 사이냅이 읽는 <b>본문 밖 글</b>을 docparse 도 <b>기본으로</b> 읽는다: PDF 글상자(FreeText) 주석 · PDF 서식 칸 값 · docx 메모 · pptx/docx SmartArt. 옵션 <code>"extra_text": false</code> 로 끌 수 있다.
-사이냅과 다르게 두는 것: 숨긴 PDF 글상자(사이냅은 읽음 → 우리는 안 읽음), pptx 발표자 노트(우리만 읽음 → 그대로 읽음).</li>
+숨긴 PDF 글상자도 사이냅처럼 읽는다(개정 2). 사이냅과 다르게 두는 것은 pptx 발표자 노트(우리만 읽음 → 그대로 읽음) 하나.</li>
 <li>A · B 는 본문(text)을 바꾸지 않는다 — 결과 바뀜 없음(layout 이 더 붙을 뿐). <b>C 는 결과 바뀜</b> — 본문 밖 글이 든 문서의 본문이 늘어난다. 그래서 0.2.0.</li>
 <li>C ABI 는 그대로(ABI 1) — 새 JSON 키로만 더한다. Rust 크레이트 API 는 <code>ExtractError::Failed</code> 모양 · <code>ExtractOptions</code> 칸이 바뀐다.</li>
 </ul></div>
@@ -325,7 +325,7 @@ docparse 가 더 많이 읽은 큰 PDF 3건 · 필드 코드("PAGE 25/ NUMPAGES 
 <h3>무엇을 읽나</h3>
 <div class="tw"><table>
 <tr><th>형식</th><th>읽는 것</th><th>어디서 · 어떻게</th><th>붙이는 자리</th></tr>
-<tr><td rowspan="2">PDF</td><td>글상자(FreeText) 주석</td><td>pdfium-render <code>page.annotations()</code> → <code>PdfPageAnnotationType::FreeText</code> → <code>contents()</code>(<code>/Contents</code>). <code>is_hidden()</code> 이면 건너뜀</td><td>그 쪽 본문 뒤, 주석 순서대로 한 줄씩</td></tr>
+<tr><td rowspan="2">PDF</td><td>글상자(FreeText) 주석</td><td>pdfium-render <code>page.annotations()</code> → <code>PdfPageAnnotationType::FreeText</code> → <code>contents()</code>(<code>/Contents</code>). 숨김(<code>is_hidden()</code>) 표시가 있어도 읽음(개정 2 — 사이냅과 같게)</td><td>그 쪽 본문 뒤, 주석 순서대로 한 줄씩</td></tr>
 <tr><td>서식 칸 값</td><td><code>Widget</code> 주석 → <code>form_field()</code> → 글 칸 · 콤보 상자의 <code>value()</code>. 빈 값 · 체크 상자 · 단추는 건너뜀</td><td>그 쪽 글상자 뒤</td></tr>
 <tr><td>docx</td><td>메모(comment)</td><td><code>word/comments.xml</code> 의 <code>&lt;w:comment&gt;</code> 안 문단 글 — 본문 문단과 같은 읽개(<code>w:t</code> · 줄바꿈 규칙)</td><td>본문 뒤, 머리글 · 꼬리글 앞(사이냅과 같은 차례)</td></tr>
 <tr><td>pptx</td><td rowspan="2">SmartArt 글</td><td>슬라이드 관계(<code>slideN.xml.rels</code>)의 <code>diagramData</code> → <code>ppt/diagrams/dataN.xml</code> 의 <code>&lt;dgm:pt&gt;</code> 글(<code>a:t</code>). 같은 글이 그려진 <code>drawingN.xml</code>(캐시)은 읽지 않는다 — 두 번 나오지 않게</td><td>그 슬라이드 글 뒤</td></tr>
@@ -334,7 +334,7 @@ docparse 가 더 많이 읽은 큰 PDF 3건 · 필드 코드("PAGE 25/ NUMPAGES 
 <h3>사이냅과 다르게 두는 것</h3>
 <div class="tw"><table>
 <tr><th>자리</th><th>사이냅</th><th>docparse(설계)</th><th>까닭</th></tr>
-<tr><td>숨긴 PDF 글상자</td><td>읽음</td><td>안 읽음</td><td>문서를 연 사람에게 안 보이는 글 — 분류 근거로 쓰면 사람이 확인할 수 없다</td></tr>
+<tr><td>숨긴 PDF 글상자</td><td>읽음</td><td><s>안 읽음</s> → <b>읽음</b>(개정 2)</td><td>처음에는 '안 보이는 글을 분류 근거로 쓰지 않는다'로 뺐으나, 사이냅과 본문을 맞추기로 해 읽는다. 숨겨 둔 글도 문서에 든 글이다</td></tr>
 <tr><td>PDF 쪽지(Text) 주석</td><td>안 읽음</td><td>안 읽음</td><td>둘 다 안 읽는다 — 접힌 검토 의견</td></tr>
 <tr><td>pptx 발표자 노트</td><td>안 읽음</td><td>읽음(지금 그대로)</td><td>이미 읽고 있는 글을 빼면 결과가 줄어든다(결과 바뀜). 사이냅보다 많이 읽는 쪽은 두기로</td></tr>
 <tr><td>Stamp · 그 밖의 주석</td><td>—</td><td>안 읽음</td><td>대개 그림 · 표시 — 글이 없다(2.pdf 의 도장 2개도 글 없음)</td></tr>
@@ -389,7 +389,7 @@ MpowerClassify 규칙(ruleset)에서 다룬다. docparse 는 문서에 있는 �
 <li>A: 짧은 PDF(2.pdf 꼴: 그림 쪽 + 기호 몇 자) + 실패 snf → 짧은 결과 채택, layout 있음.</li>
 <li>B: 스캔 PDF + 빈 snf / 실패 snf → <code>Err(Failed{layout: Some(2,2)})</code>, FFI 오류 JSON 에 <code>"layout"</code>.</li>
 <li>B: 자체 파서 단독 실패 · 사이냅만 실패 → layout 없음.</li>
-<li>C(PDF): 글상자 · 서식 칸이 그 쪽 본문 뒤에 나온다. 숨긴 글상자 · 쪽지 주석 · 빈 서식 칸 · 체크 상자는 안 나온다. <code>scan_pages</code> 는 켜고 끄고 같다.</li>
+<li>C(PDF): 글상자 · 서식 칸이 그 쪽 본문 뒤에 나온다. 숨긴 글상자도 나온다(개정 2). 쪽지 주석 · 빈 서식 칸 · 체크 상자는 안 나온다. <code>scan_pages</code> 는 켜고 끄고 같다.</li>
 <li>C(docx): 메모 글이 본문 뒤 · 머리글 앞에 나온다. SmartArt 글이 한 번만(캐시 drawing 과 겹치지 않게) 나온다.</li>
 <li>C(pptx): SmartArt 글이 그 슬라이드 글 뒤에 나온다. 발표자 노트는 지금처럼 나온다.</li>
 <li>C(끔): <code>extra_text:false</code> 면 모든 시험 문서 본문이 0.1.2 와 같다.</li>
@@ -397,7 +397,7 @@ MpowerClassify 규칙(ruleset)에서 다룬다. docparse 는 문서에 있는 �
 <h3>시험 문서 (<code>tools\make_samples.py</code> 에 더함 — 모두 지어낸 내용)</h3>
 <div class="tw"><table>
 <tr><th>파일</th><th>내용</th><th>만드는 법</th></tr>
-<tr><td><code>주석_예시.pdf</code></td><td>그림으로 덮은 3쪽 + 글상자 2 · 숨긴 글상자 1 · 쪽지 1 · 도장 1 · 글 서식 칸 1 · 체크 상자 1</td><td>PyMuPDF(<code>add_freetext_annot</code> · <code>add_text_annot</code> · <code>add_widget</code>)</td></tr>
+<tr><td><code>주석_예시.pdf</code></td><td>그림으로 덮은 3쪽 + 글상자 2 · 숨긴 글상자 1(읽힘) · 쪽지 1 · 도장 1 · 글 서식 칸 1 · 체크 상자 1</td><td>PyMuPDF(<code>add_freetext_annot</code> · <code>add_text_annot</code> · <code>add_widget</code>)</td></tr>
 <tr><td><code>메모_예시.docx</code></td><td>본문 · 메모 1 · 머리글 · 꼬리글</td><td>python-docx 1.2(<code>add_comment</code>)</td></tr>
 <tr><td><code>SmartArt_예시.pptx</code> · <code>SmartArt_예시.docx</code></td><td>SmartArt 한 개(글 3개) + 발표자 노트(pptx)</td><td>도구로 SmartArt 를 만들 수 없어, 작은 OOXML 부품(<code>dataN.xml</code> · 관계)을 직접 써 넣는다</td></tr>
 </table></div>
@@ -456,7 +456,7 @@ MpowerClassify 규칙(ruleset)에서 다룬다. docparse 는 문서에 있는 �
 <div class="tw"><table>
 <tr><th>질문</th><th>제안</th></tr>
 <tr><td>C 를 A · B 와 같은 판에 넣나</td><td>넣는다(0.2.0, 기본 켬). MpowerClassify 가 바로 올리기 어렵다면 A · B 만 0.1.3 으로 먼저</td></tr>
-<tr><td>숨긴 PDF 글상자도 읽어 사이냅과 완전히 맞추나</td><td>안 읽음 — 안 보이는 글을 분류 근거로 쓰지 않는다. 사이냅과의 차이는 이것 하나로 남는다</td></tr>
+<tr><td>숨긴 PDF 글상자도 읽어 사이냅과 완전히 맞추나</td><td><b>읽음으로 정함</b>(개정 2, 2026-11-18) — 사이냅과 같은 본문을 우선한다</td></tr>
 <tr><td>pptx 발표자 노트를 사이냅처럼 빼나</td><td>빼지 않음 — 지금 읽는 글을 줄이면 결과 바뀜이고, 노트도 문서 작성자가 쓴 글이다</td></tr>
 <tr><td>본문 밖 글 앞에 표식(예: "[메모]")을 다나</td><td>안 담 — 사이냅과 같은 모양이어야 두 판 본문이 맞는다</td></tr>
 <tr><td>hwp · hwpx 메모, docx 각주/미주</td><td>메모 · 각주가 든 실제 샘플을 구해 사이냅과 비교한 뒤 다음 판에서 정한다</td></tr>
