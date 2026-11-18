@@ -203,7 +203,7 @@ pdfium 이 없어도 PDF 가 아닌 문서는 그대로 읽힌다.</div>
 <tr><td><code>abi 1</code></td><td>함수 모양 버전 — 부르는 쪽이 아는 값(<code>DOCPARSE_ABI_VERSION</code>)과 같아야 한다</td></tr>
 </table></div>
 
-<p>저장소의 <code>tests\samples\</code> 에 시험용으로 <b>지어낸</b> 문서 10건이 들어 있다
+<p>저장소의 <code>tests\samples\</code> 에 시험용으로 <b>지어낸</b> 문서 14건이 들어 있다
 (docx · xlsx · pptx · md · txt · html · 글자층 PDF · 스캔 PDF · 작은 그림 · zip 압축).
 형식 감지부터 해 본다 — 확장자가 아니라 <b>파일 내용</b>으로 본다.</p>
 <div class="cmd"><pre>.\target\release\dp.exe detect .\tests\samples\보고서_예시.docx .\tests\samples\스캔_예시.pdf .\tests\samples\묶음_예시.zip</pre><button type="button">복사</button></div>
@@ -365,7 +365,8 @@ zip      .\tests\samples\묶음_예시.zip</pre></div>
 <h2><span class="no">10</span>여러 문서 한꺼번에 (dump · compare)</h2>
 <h3>① 목록 만들기</h3>
 <p>메모장으로 한 줄에 문서 경로 하나씩 적어 <code>.txt</code> 로 저장한다(<b>UTF-8</b>). 빈 줄과 <code>#</code> 로 시작하는 줄은 건너뛴다.
-상대 경로는 <code>dp.exe</code> 를 실행한 폴더 기준이다. 저장소에는 시험 문서 10건 목록 <code>tests\samples.txt</code> 가 이미 있다.
+상대 경로는 <code>dp.exe</code> 를 실행한 폴더 기준이다. 저장소에는 시험 문서 14건 목록 <code>tests\samples.txt</code> 가 이미 있다
+(아래 화면 예시는 0.1.2 때의 10건으로 찍은 것이다).
 목록 대신 <b>폴더</b>를 주면 안의 파일(하위 폴더 포함)을 이름 순으로 모두 읽는다.</p>
 <p>실제 업무 문서로 시험하려면 <code>tests\private\</code>(git 에 올라가지 않음)에 문서와 목록을 두고 쓴다.
 hwp · hwpx · doc · xls · ppt 는 공개 시험 문서가 없으니 이 폴더에 넣어 시험한다.</p>
@@ -428,6 +429,7 @@ dump 는 문서별 실패가 있어도 끝까지 돌고 종료 코드 0 을 낸�
 <tr><th>옵션</th><th>뜻</th><th>쓰는 명령</th></tr>
 <tr><td><code>--json</code></td><td>결과 JSON 전체를 낸다</td><td>extract</td></tr>
 <tr><td><code>--raw</code></td><td>정제 끄기(<code>clean: false</code>)</td><td>extract · dump</td></tr>
+<tr><td><code>--no-extra-text</code></td><td>본문 밖 글(PDF 글상자 주석 · 서식 칸 값, docx 메모, SmartArt)을 읽지 않음(<code>extra_text: false</code>, 0.2.0~). 0.1.x 결과와 견줄 때</td><td>extract · dump</td></tr>
 <tr><td><code>--fmt F</code></td><td>감지 건너뛰고 그 형식으로</td><td>extract · dump · check</td></tr>
 <tr><td><code>--engine E</code> · <code>--synap-exe 경로</code></td><td>builtin(기본) · synap_fallback · synap_only</td><td>extract · dump</td></tr>
 <tr><td><code>--pdfium 경로</code></td><td>pdfium 라이브러리 위치</td><td>extract · dump</td></tr>
@@ -451,7 +453,8 @@ dump 는 문서별 실패가 있어도 끝까지 돌고 종료 코드 0 을 낸�
 <tr><td>2</td><td><code>DP_ERR_NOT_FOUND</code></td><td>파일 없음 — 경로 · 따옴표 확인</td></tr>
 <tr><td>3</td><td><code>DP_ERR_SIZE_LIMIT</code></td><td>크기 상한 초과 — 깨진 파일이 아니다. 필요하면 <code>--limit</code> 로 올린다</td></tr>
 <tr><td>4</td><td><code>DP_ERR_UNSUPPORTED</code></td><td>지원하지 않는 형식(그림 · zip · 알 수 없는 바이너리)</td></tr>
-<tr><td>5</td><td><code>DP_ERR_FAILED</code></td><td>읽을 수 없는 문서(깨진 파일 · 암호 걸린 문서 등). PDF 가 전부 5 면 pdfium 위치부터 확인(<a href="#s14">14장</a>)</td></tr>
+<tr><td>5</td><td><code>DP_ERR_FAILED</code></td><td>읽을 수 없는 문서(깨진 파일 · 암호 걸린 문서 등). PDF 가 전부 5 면 pdfium 위치부터 확인(<a href="#s14">14장</a>).
+사이냅 폴백에서 스캔 PDF 가 실패하면 실패 줄 끝에 <code>layout={…} 판정=스캔PDF(처리제외)</code> 가 붙는다(0.2.0~) — 실패가 아니라 처리제외로 다룰 문서다</td></tr>
 <tr><td>99</td><td><code>DP_ERR_PANIC</code></td><td>라이브러리 안 오류(프로그램은 죽지 않음) — 그 문서를 알려 주면 고친다</td></tr>
 </table></div>
 <p>나머지: <code>compare</code> 는 모두 같으면 0 · 다르면 1, <code>dump</code> 는 항상 0(문서별 결과는 <code>index.json</code>), <code>version</code> 은 ABI 가 1 이 아니면 1.</p>

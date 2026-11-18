@@ -188,6 +188,7 @@ fn limits_from(v: &Value) -> dp::Limits {
 //    1) engine: "builtin" | "synap_fallback" | "synap_only" (synap_* 는 synap_exe 필수)
 //    2) clean(기본 true)·pdfium_lib·label
 //    3) limits 객체
+//    4) extra_text(기본 true) — 본문 밖 글(PDF 글상자 · 서식 칸, docx 메모, SmartArt)
 //
 // -in: v = 옵션 JSON 객체
 //
@@ -209,6 +210,8 @@ fn extract_options(v: &Value) -> Result<dp::ExtractOptions, String> {
         pdfium_lib: v.get("pdfium_lib").and_then(Value::as_str).map(PathBuf::from),
         clean: v.get("clean").and_then(Value::as_bool).unwrap_or(true),
         label: v.get("label").and_then(Value::as_str).map(str::to_string),
+        // 키가 없으면 켠다 — 옛 감싸개가 옵션을 몰라도 새 DLL 은 사이냅과 같은 글을 읽는다
+        extra_text: v.get("extra_text").and_then(Value::as_bool).unwrap_or(true),
     })
 }
 
@@ -389,8 +392,15 @@ pub extern "C" fn docparse_extract(path: *const c_char, opts_json: *const c_char
                         "kind": "size_limit", "message": message, "size": size, "limit": limit, "text_kind": text_kind}}).to_string()),
                     dp::ExtractError::Unsupported(f) => (DP_ERR_UNSUPPORTED, json!({"error": {
                         "kind": "unsupported", "message": message, "fmt": f.as_str()}}).to_string()),
-                    dp::ExtractError::Failed(_) => (DP_ERR_FAILED, json!({"error": {
-                        "kind": "failed", "message": message}}).to_string()),
+                    dp::ExtractError::Failed { layout, .. } => {
+                        let mut err = json!({"kind": "failed", "message": message});
+                        // PDF 파서가 쪽을 잰 뒤 실패했으면 그 구성을 싣는다 — 부른 쪽이
+                        // '스캔 PDF 처리제외'로 가를 재료(새 키라 ABI 는 그대로)
+                        if let Some(l) = layout {
+                            err["layout"] = json!({"pages": l.pages, "scan_pages": l.scan_pages});
+                        }
+                        (DP_ERR_FAILED, json!({"error": err}).to_string())
+                    }
                 }
             }
         };
@@ -703,6 +713,38 @@ mod tests {
         let (code, _) = call(|o| docparse_extract(p.as_ptr(), bad.as_ptr(), o));
         assert_eq!(code, DP_ERR_ARG);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    //------------------------------------------------------------------
+    // 시험: 실패 JSON 의 layout · extra_text 옵션 (0.2.0)
+    //=> 스캔 PDF 를 사이냅 폴백(없는 snf = 사이냅 실패)으로 읽으면 DP_ERR_FAILED 이고
+    //   error.layout 에 PDF 파서가 잰 쪽 구성이 실린다. 주석 PDF 는 extra_text 로 본문이 갈린다.
+    //
+    // -in: 없음
+    //
+    // -out: 없음
+    // -out: error = 기대와 다르면 assert 실패
+    //------------------------------------------------------------------
+    #[test]
+    fn 실패_layout과_extra_text() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let pdfium = root.join("third_party/pdfium")
+            .join(if cfg!(windows) { "windows-x64/pdfium.dll" } else { "linux-x64/libpdfium.so" });
+        let scan = CString::new(root.join("tests/samples/스캔_예시.pdf").to_str().unwrap()).unwrap();
+        let o = CString::new(json!({"engine": "synap_fallback", "synap_exe": root.join("없는_snf.exe"),
+                                     "pdfium_lib": pdfium}).to_string()).unwrap();
+        let (code, v) = call(|out| docparse_extract(scan.as_ptr(), o.as_ptr(), out));
+        assert_eq!(code, DP_ERR_FAILED, "{}", v);
+        assert_eq!(v["error"]["layout"], json!({"pages": 2, "scan_pages": 2}), "{}", v);
+
+        let annot = CString::new(root.join("tests/samples/주석_예시.pdf").to_str().unwrap()).unwrap();
+        let on = CString::new(json!({"pdfium_lib": pdfium}).to_string()).unwrap();
+        let off = CString::new(json!({"pdfium_lib": pdfium, "extra_text": false}).to_string()).unwrap();
+        let (_, v_on) = call(|out| docparse_extract(annot.as_ptr(), on.as_ptr(), out));
+        let (_, v_off) = call(|out| docparse_extract(annot.as_ptr(), off.as_ptr(), out));
+        // 키를 안 주면 켜진다(기본) — 옛 감싸개도 새 DLL 에서 본문 밖 글을 받는다
+        assert!(v_on["text"].as_str().unwrap().contains("서식 칸에 적은 값"), "{}", v_on);
+        assert!(!v_off["text"].as_str().unwrap().contains("서식 칸에 적은 값"), "{}", v_off);
     }
 
     //------------------------------------------------------------------

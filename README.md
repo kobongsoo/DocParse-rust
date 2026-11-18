@@ -41,7 +41,8 @@ bindings/php/DocParse.php     FFI 감싸개 (PHP 7.4+)
 examples/                 언어별 예제 (python · rust · java · php · c)
 doc/docparse-라이브러리-연동설명서.html   언어별 적용 방법 설명서 (묶음 안: doc/docparse-guide.html)
 doc/빌드_CLI시험_설명서.html   빌드하고 dp.exe 로 시험하는 방법 (묶음 안: doc/build-cli-guide.html)
-tests/samples/            지어낸 시험 문서 10건 (+ 목록 tests/samples.txt, 다시 만들기 tools/make_samples.py)
+tests/samples/            지어낸 시험 문서 14건 (+ 목록 tests/samples.txt, 다시 만들기 tools/make_samples.py)
+plan/                     설계서
 third_party/pdfium/       pdfium 정본 (묶음에 같이 넣는다)
 scripts/                  win-build.sh · linux-build.sh · package.py
 ```
@@ -145,12 +146,23 @@ Python 이 불러 쓰면 실행파일은 python.exe 이므로, pdfium 을 docpar
 .\lib\dp.exe extract 보고서.pdf --json                  # 라이브러리 결과 JSON 전체 (text · fmt · engine · partial · layout)
 .\lib\dp.exe extract 보고서.pdf --raw                   # 6단계 정제 전 원시 텍스트
 .\lib\dp.exe extract 확장자없는파일 --fmt hwp            # 감지를 건너뛰고 그 형식으로
+.\lib\dp.exe extract 보고서.pdf --no-extra-text          # 본문 밖 글(주석 · 서식 칸 · 메모 · SmartArt) 빼고 — 0.1.x 와 같은 본문
 ```
+
+0.2.0 부터 **본문 밖 글**도 기본으로 읽습니다 — PDF 글상자(FreeText) 주석 · PDF 서식 칸 값 · docx 메모 · docx/pptx SmartArt.
+사이냅은 읽는데 docparse 는 놓치던 '화면에 보이는 글'입니다. 숨긴 글상자 · PDF 쪽지 주석은 읽지 않습니다.
+옵션 `"extra_text": false`(dp `--no-extra-text`)로 끕니다. 설계: `plan/PDF-layout보존-본문밖글읽기-설계-20261118.html`.
 
 스캔(그림) PDF 는 성공(0)이지만 본문이 비고, 요약 줄에 판정이 붙습니다:
 
 ```
 [dp] fmt=pdf engine=pdf chars=0 11ms layout={"pages":2,"scan_pages":2} 판정=스캔PDF(처리제외)
+```
+
+사이냅 폴백에서 사이냅도 못 읽은 스캔 PDF 는 실패(5)지만, 오류에 쪽 구성이 실려 판정이 붙습니다(0.2.0~):
+
+```
+실패(5 DP_ERR_FAILED): 하이브리드 전엔진 실패(감지=pdf; pdf:empty; snf:…) layout={"pages":2,"scan_pages":2} 판정=스캔PDF(처리제외)
 ```
 
 ### 상한 · 로그 · 사이냅

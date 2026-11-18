@@ -30,6 +30,16 @@ class DocParseException extends RuntimeException
         $this->kind = $kind;
         $this->detail = $detail;
     }
+
+    /**
+     * PDF 파서가 쪽을 잰 뒤 실패했으면 ['pages' => n, 'scan_pages' => m], 아니면 null (0.2.0~).
+     * 사이냅도 못 읽은 스캔 PDF 를 scanPdfVerdict($pages, $scanPages, 0) 으로 '처리제외'로 가를 재료다.
+     */
+    public function layout(): ?array
+    {
+        $l = $this->detail['layout'] ?? null;
+        return is_array($l) ? ['pages' => (int)($l['pages'] ?? 0), 'scan_pages' => (int)($l['scan_pages'] ?? 0)] : null;
+    }
 }
 
 /** 크기 상한 초과 — 깨진 파일(failed)과 구분해 처리하라고 따로 둔다. */

@@ -35,10 +35,14 @@ LOG_FN = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
 #------------------------------------------------------------------
 # 추출 실패 예외
 #=> 문서에서 본문을 뽑지 못했다(깨짐·미지원·파서 실패). kind 에 라이브러리가 준 종류가 있다.
-# -필드: kind = "unsupported" | "failed" | "arg" | "panic" | "size_limit"
+# -필드: kind   = "unsupported" | "failed" | "arg" | "panic" | "size_limit"
+# -필드: layout = None 또는 (pages, scan_pages) — PDF 파서가 쪽을 잰 뒤 실패했을 때(0.2.0~).
+#                 사이냅도 못 읽은 스캔 PDF 를 scan_pdf_verdict(pages, scan_pages, 0) 으로
+#                 '처리제외'로 가를 재료다
 #------------------------------------------------------------------
 class ExtractError(Exception):
     kind = "failed"
+    layout = None
 
 
 #------------------------------------------------------------------
@@ -333,6 +337,9 @@ def _error(e):
         return x
     x = ExtractError(msg)
     x.kind = kind
+    # 실패에도 쪽 구성이 오면 성공 결과(Extracted.layout)와 같은 모양으로 담는다
+    lay = e.get("layout")
+    x.layout = (lay["pages"], lay["scan_pages"]) if lay else None
     return x
 
 
@@ -386,6 +393,8 @@ def detect_format(path):
 # -in: snf_timeout         = 사이냅 시간 상한(초)
 # -in: min_text_len        = 사이냅 폴백 '짧은 결과' 기준 글자 수
 # -in: label               = 로그에 적을 이름
+# -in: extra_text          = 본문 밖 글(PDF 글상자 · 서식 칸, docx 메모, SmartArt)도 읽을지.
+#                            None = 라이브러리 기본(읽음, 0.2.0~), False = 0.1.x 와 같은 본문
 #
 # -out: Extracted = 추출 결과
 # -out: error = 크기 상한이면 SizeLimitError, 그 밖의 실패는 ExtractError
@@ -393,7 +402,8 @@ def detect_format(path):
 #------------------------------------------------------------------
 def extract(path, fmt=None, clean=False, parser_timeout=None, max_pdf_pages=None,
             max_file_bytes=None, max_file_bytes_text=None, pdfium_lib=None,
-            engine="builtin", synap_exe=None, snf_timeout=None, min_text_len=None, label=None):
+            engine="builtin", synap_exe=None, snf_timeout=None, min_text_len=None, label=None,
+            extra_text=None):
     load()
     lim = {}
     _put(lim, "parser_timeout_secs", parser_timeout)
@@ -409,6 +419,9 @@ def extract(path, fmt=None, clean=False, parser_timeout=None, max_pdf_pages=None
             opts[k] = os.fspath(v) if k == "synap_exe" else v
     if pdfium_lib is not None:
         opts["pdfium_lib"] = os.fspath(pdfium_lib)
+    # 준 때만 보낸다 — 안 주면 라이브러리 기본값(읽음)을 따른다
+    if extra_text is not None:
+        opts["extra_text"] = bool(extra_text)
     _code, s = _call(_lib.docparse_extract, _b(path), json.dumps(opts).encode("utf-8"))
     d = json.loads(s)
     e = d.get("error")

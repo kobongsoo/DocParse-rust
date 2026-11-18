@@ -86,7 +86,8 @@ pub struct Extracted {
 // 추출 실패 — 라이브러리 결과 JSON 의 error.kind 별로 나눈다
 // -필드: SizeLimit   = 크기 상한 초과(size·limit 바이트, text_kind = 텍스트류 상한이었나)
 // -필드: Unsupported = 지원하지 않는 형식
-// -필드: Failed      = 파싱 실패(사유가 빈 문자열일 수 있다 = 자체 파서가 못 읽음)
+// -필드: Failed      = 파싱 실패(사유가 빈 문자열일 수 있다 = 자체 파서가 못 읽음).
+//                       layout = PDF 파서가 쪽을 잰 뒤 실패했으면 그 구성(0.2.0~, 스캔 PDF 처리제외 판정 재료)
 // -필드: Arg         = 인자 오류(감싸개·옵션 실수)
 // -필드: Panic       = 라이브러리 내부 오류(버그)
 // 모든 경우 message 는 라이브러리가 만든 사람용 문장 그대로다.
@@ -95,7 +96,7 @@ pub struct Extracted {
 pub enum ExtractError {
     SizeLimit { size: u64, limit: u64, text_kind: bool, message: String },
     Unsupported { fmt: String, message: String },
-    Failed { message: String },
+    Failed { message: String, layout: Option<Layout> },
     Arg { message: String },
     Panic { message: String },
 }
@@ -112,7 +113,7 @@ impl ExtractError {
     pub fn message(&self) -> &str {
         match self {
             ExtractError::SizeLimit { message, .. } | ExtractError::Unsupported { message, .. }
-            | ExtractError::Failed { message } | ExtractError::Arg { message }
+            | ExtractError::Failed { message, .. } | ExtractError::Arg { message }
             | ExtractError::Panic { message } => message,
         }
     }
@@ -140,7 +141,14 @@ impl ExtractError {
             },
             "arg" => ExtractError::Arg { message },
             "panic" => ExtractError::Panic { message },
-            _ => ExtractError::Failed { message },
+            // 실패에 실린 쪽 구성(없으면 None) — 성공 결과의 layout 과 같은 모양
+            _ => ExtractError::Failed {
+                message,
+                layout: e.get("layout").filter(|x| x.is_object()).map(|x| Layout {
+                    pages: x.get("pages").and_then(Value::as_u64).unwrap_or(0) as usize,
+                    scan_pages: x.get("scan_pages").and_then(Value::as_u64).unwrap_or(0) as usize,
+                }),
+            },
         }
     }
 }
@@ -405,7 +413,8 @@ impl DocParse {
     // 본문 추출
     //
     // -in: path = 파일 경로
-    // -in: opts = 옵션 JSON(docparse.h 참고, {} 이면 전부 기본값)
+    // -in: opts = 옵션 JSON(docparse.h 참고, {} 이면 전부 기본값).
+    //             {"extra_text": false} 면 본문 밖 글(PDF 주석 · 서식 칸, docx 메모, SmartArt)을 읽지 않는다
     //
     // -out: Extracted = 추출 결과
     // -out: error = 실패하면 ExtractError(종류별)

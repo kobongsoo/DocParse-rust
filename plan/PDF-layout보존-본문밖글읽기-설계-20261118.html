@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF layout 보존 · 본문 밖 글 설계</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --ground: #f5f7fa; --surface: #ffffff; --sunken: #eceff4; --ink: #19212d; --ink-2: #3c4656;
+  --muted: #647083; --rule: #d9dee6; --accent: #2c5aa0; --accent-soft: #e3ebf7;
+  --good: #2a7a57; --good-soft: #e2f1ea; --warn: #a8701a; --warn-soft: #f7ecd8;
+  --bad: #b0463b; --bad-soft: #f6e3e0; --term: #1b2230; --term-ink: #dde3ec; --term-dim: #8b96a8;
+  --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --mono: "IBM Plex Mono", "D2Coding", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #11151b; --surface: #181e26; --sunken: #1f2630; --ink: #e4e8ee; --ink-2: #c2c9d3;
+    --muted: #8f9aa9; --rule: #2b3441; --accent: #86a9e3; --accent-soft: #1f2c42; --good: #6cc39a;
+    --good-soft: #17322a; --warn: #e0ad5c; --warn-soft: #3a2d17; --bad: #e58a7f; --bad-soft: #3b1f1c;
+    --term: #0b0f15; --term-ink: #dde3ec; --term-dim: #7f8a9c;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #11151b; --surface: #181e26; --sunken: #1f2630; --ink: #e4e8ee; --ink-2: #c2c9d3;
+  --muted: #8f9aa9; --rule: #2b3441; --accent: #86a9e3; --accent-soft: #1f2c42; --good: #6cc39a;
+  --good-soft: #17322a; --warn: #e0ad5c; --warn-soft: #3a2d17; --bad: #e58a7f; --bad-soft: #3b1f1c;
+  --term: #0b0f15; --term-ink: #dde3ec; --term-dim: #7f8a9c;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; padding-inline: 16px; background: var(--ground); color: var(--ink);
+  font-family: var(--sans); font-size: 15.5px; line-height: 1.75; word-break: keep-all; overflow-wrap: anywhere; }
+a { color: var(--accent); text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--sunken); padding: 1px 5px; border-radius: 4px; color: var(--ink-2); }
+h1, h2, h3 { line-height: 1.3; margin: 0; text-wrap: balance; }
+.shell { max-width: 960px; margin: 0 auto; padding: 40px 0 80px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 22px; margin-bottom: 28px; }
+.eyebrow { font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+h1 { font-size: 30px; margin: 6px 0 10px; }
+.lede { color: var(--ink-2); max-width: 720px; margin: 0; }
+section { margin: 44px 0; scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin-bottom: 12px; display: flex; align-items: baseline; gap: 10px; }
+h2 .no { font-family: var(--mono); font-size: 14px; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 1px 8px; }
+h3 { font-size: 16.5px; margin: 24px 0 8px; }
+p { margin: 8px 0; }
+ul, ol { padding-left: 22px; margin: 8px 0; }
+li { margin: 3px 0; }
+.toc { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 20px; }
+.toc ol { margin: 0; columns: 2; column-gap: 32px; }
+@media (max-width: 640px) { .toc ol { columns: 1; } }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 14px 0; }
+.step { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+.step b { display: block; font-size: 14px; }
+.step .n { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+.step .s { color: var(--muted); font-size: 13.5px; }
+.tw { overflow-x: auto; margin: 12px 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { background: var(--sunken); font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.callout { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.callout.good { border-color: var(--good); background: var(--good-soft); }
+.callout.bad { border-color: var(--bad); background: var(--bad-soft); }
+/* 명령 상자 — 입력(복사 단추)과 화면 출력 */
+.cmd { position: relative; margin: 10px 0; }
+.cmd pre { margin: 0; font-family: var(--mono); font-size: 13.5px; line-height: 1.6; background: var(--term); color: var(--term-ink);
+  padding: 12px 64px 12px 14px; border-radius: 8px; overflow-x: auto; white-space: pre; }
+.cmd pre::before { content: "PS> "; color: var(--term-dim); }
+.cmd button { position: absolute; top: 8px; right: 8px; font: 12px var(--sans); border: 1px solid #3a4558; background: #273142; color: #dde3ec;
+  border-radius: 5px; padding: 3px 9px; cursor: pointer; }
+.cmd button:hover { background: #334058; }
+.out { margin: 6px 0 14px; }
+.out .label { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.out pre { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.55; background: var(--sunken); color: var(--ink-2);
+  padding: 10px 14px; border-radius: 8px; overflow-x: auto; white-space: pre; border: 1px dashed var(--rule); }
+.tree { font-family: var(--mono); font-size: 13.5px; line-height: 1.6; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 16px; overflow-x: auto; white-space: pre; margin: 12px 0; }
+.tree .c { color: var(--muted); }
+.tree .new { color: var(--good); font-weight: 600; }
+.tag { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 10px; background: var(--sunken); color: var(--ink-2); white-space: nowrap; }
+.tag.g { background: var(--good-soft); color: var(--good); }
+.tag.w { background: var(--warn-soft); color: var(--warn); }
+.tag.e { background: var(--bad-soft); color: var(--bad); }
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 16px; margin-top: 50px; }
+.callout ul { margin: 6px 0 0; }
+small { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="top">
+  <div class="eyebrow">DocParse-rust · 설계서 · 2026-11-18(개정 1) · 대상 0.1.2 → 0.2.0 · 상태: 구현됨(0.2.0, 2026-11-18)</div>
+  <h1>PDF 페이지 구성 보존(A · B)과 본문 밖 글 읽기(C)</h1>
+  <p class="lede">사이냅 폴백 모드에서 스캔 PDF 의 <b>페이지 구성(layout)</b>이 사라져 처리제외 판정이 빠지는 문제(A · B)를 고치고,
+  사이냅은 읽는데 docparse 는 읽지 않던 <b>본문 밖 글</b>(PDF 글상자 주석 · PDF 서식 칸 값 · Word 메모 · SmartArt)을 기본으로 읽게 한다(C).
+  고칠 곳은 이 저장소의 <code>crates\docparse</code> · <code>crates\docparse-ffi</code> · 감싸개 4종이고, 결과를 쓰는 MpowerClassify 쪽 후속은 <a href="#s9">9장</a>에 따로 적는다.</p>
+  <p class="lede"><small>개정 1(2026-11-18) — C 를 'PDF 주석 읽기 · 기본 끔'에서 '본문 밖 글 읽기 · 기본 켬'으로 넓혔다. 근거: 이 PC 의 사이냅(snf_exe 4.29.0)과 직접 비교한 결과(<a href="#s5">5장</a>).</small></p>
+</header>
+
+<div class="callout good"><b>요약</b>
+<ul>
+<li><b>A</b> — 사이냅으로 넘어갈 때 '부분 추출' 표식만 지우고 <b>layout 은 남긴다</b>. Python 판 <code>notes.py</code> 와 같은 규칙. 사이냅이 이기거나 짧은 결과를 채택한 문서에도 layout 이 붙는다.</li>
+<li><b>B</b> — 모든 엔진이 실패해도 PDF 파서가 잰 layout 을 <b>오류에 싣는다</b>(오류 JSON 에 <code>"layout"</code> 키 추가). 1.pdf 처럼 사이냅도 못 읽은 스캔 PDF 를 부른 쪽이 처리제외로 가를 수 있다.</li>
+<li><b>C</b> — 사이냅이 읽는 <b>본문 밖 글</b>을 docparse 도 <b>기본으로</b> 읽는다: PDF 글상자(FreeText) 주석 · PDF 서식 칸 값 · docx 메모 · pptx/docx SmartArt. 옵션 <code>"extra_text": false</code> 로 끌 수 있다.
+사이냅과 다르게 두는 것: 숨긴 PDF 글상자(사이냅은 읽음 → 우리는 안 읽음), pptx 발표자 노트(우리만 읽음 → 그대로 읽음).</li>
+<li>A · B 는 본문(text)을 바꾸지 않는다 — 결과 바뀜 없음(layout 이 더 붙을 뿐). <b>C 는 결과 바뀜</b> — 본문 밖 글이 든 문서의 본문이 늘어난다. 그래서 0.2.0.</li>
+<li>C ABI 는 그대로(ABI 1) — 새 JSON 키로만 더한다. Rust 크레이트 API 는 <code>ExtractError::Failed</code> 모양 · <code>ExtractOptions</code> 칸이 바뀐다.</li>
+</ul></div>
+
+<nav class="toc" aria-label="목차">
+  <ol>
+    <li><a href="#s1">배경 · 관측</a></li>
+    <li><a href="#s2">원인 (A · B)</a></li>
+    <li><a href="#s3">설계 A — 사이냅으로 넘어가도 layout 유지</a></li>
+    <li><a href="#s4">설계 B — 실패에도 layout 싣기</a></li>
+    <li><a href="#s5">본문 밖 글(C) — 2.pdf · 사이냅 비교</a></li>
+    <li><a href="#s6">설계 C — 본문 밖 글 읽기(기본 켬)</a></li>
+    <li><a href="#s7">호환 · 결과 바뀜</a></li>
+    <li><a href="#s8">시험 계획</a></li>
+    <li><a href="#s9">MpowerClassify 후속(다른 저장소)</a></li>
+    <li><a href="#s10">작업 순서 · 바꿀 파일</a></li>
+    <li><a href="#s11">정할 것</a></li>
+  </ol>
+</nav>
+
+<section id="s1">
+<h2><span class="no">1</span>배경 · 관측</h2>
+<p>MpowerClassify 작업 세션에서 보고된 내용(2026-11-18):</p>
+<ul>
+<li>Rust 판(MpowerClassify-rs)을 <code>--synap-fallback</code> 으로 돌리면, 사이냅이 이긴 문서에서 페이지 정보가 사라져 처리제외 표시가 빠진다.</li>
+<li><code>D:\sample\scanpdf\1.pdf</code> 는 처리제외가 아니라 <code>extract_failed</code> 가 된다.</li>
+<li><code>dp.exe</code> 로 직접 돌려도 <code>layout: null</code> 이 나온다 → MpowerClassify 가 아니라 docparse 에서 고칠 일.</li>
+</ul>
+<h3>재현 (dp.exe 0.1.2, 이 PC)</h3>
+<p>사이냅 폴백은 <code>--engine synap_fallback --synap-exe C:\nope.exe</code>(없는 경로 = 사이냅 실패)로 돌렸다. 사이냅이 이기는 경우는 <a href="#s8">8장</a>의 가짜 snf 로 시험한다.</p>
+<div class="tw"><table>
+<tr><th>문서</th><th>생김새</th><th>기본 엔진(builtin)</th><th>사이냅 폴백</th></tr>
+<tr><td><code>1.pdf</code></td><td>복합기(SINDOH N600) 스캔 2쪽, 글자층 없음</td><td>성공, 0자, <code>layout={"pages":2,"scan_pages":2}</code> → <span class="tag g">처리제외</span></td><td><span class="tag e">실패(5)</span> 하이브리드 전엔진 실패(pdf:empty; snf:…), layout 없음</td></tr>
+<tr><td><code>2.pdf</code></td><td>PowerPoint 내보내기 33쪽, 쪽마다 그림 한 장 + 글상자 주석 8개</td><td>성공, 3자(〮 ∽ …), <code>layout={"pages":33,"scan_pages":32}</code> → <span class="tag g">처리제외</span></td><td>성공, 3자(짧은 결과 채택), <b>layout 없음</b> → 판정 못 함</td></tr>
+<tr><td><code>tests\samples\스캔_예시.pdf</code></td><td>지어낸 스캔 2쪽</td><td>성공, 0자, layout 2/2 → 처리제외</td><td><span class="tag e">실패(5)</span>, layout 없음</td></tr>
+</table></div>
+<p>2.pdf 줄이 중요하다 — 사이냅이 <b>실패</b>했는데도 pdfium 결과(3자)를 '짧은 결과'로 채택하면서 layout 을 잃는다. 사이냅이 이기는 경우만의 문제가 아니다.</p>
+</section>
+
+<section id="s2">
+<h2><span class="no">2</span>원인 (A · B)</h2>
+<h3>A — 사이냅 차례에서 표식을 통째로 지운다</h3>
+<p><code>crates\docparse\src\extract.rs</code> 의 <code>extract_as</code> 사이냅 폴백 루프:</p>
+<div class="out"><div class="label">지금 코드(요점)</div><pre>// 마지막으로 시도한 엔진이 남긴 표식 — 분리 전에는 엔진마다 메모를 비웠으므로,
+// 결과에 붙는 표식은 언제나 '마지막에 돈 엔진'의 것이었다. 그 규칙을 그대로 지킨다.
+let mut notes: (Option&lt;Partial&gt;, Option&lt;Layout&gt;) = (None, None);
+for name in engines {
+    let got = if name == "snf" {
+        <b>notes = (None, None);</b>                       // ← partial 과 함께 layout 도 지움
+        crate::synap::snf_extract(snf, path, snf_secs)
+    } else {
+        let run = Run::new(opts);
+        let r = extract_raw(path, fmt, &amp;run)…;
+        notes = run.into_notes();
+        r
+    };
+    …</pre></div>
+<p>주석이 말하는 '분리 전 규칙'은 <b>partial 에만 맞다</b>. Python 판은 두 표식을 일부러 다르게 다룬다:</p>
+<div class="tw"><table>
+<tr><th>표식</th><th>Python 판(MpowerClassify <code>extract/notes.py</code> · <code>hybrid.py</code>)</th><th>Rust docparse 지금</th></tr>
+<tr><td>partial (부분 추출)</td><td>엔진마다 <code>notes.reset()</code> 으로 비움 — 1차 파서의 "일부만 읽음"이 사이냅 결과에 붙지 않게</td><td>같음 <span class="tag g">맞음</span></td></tr>
+<tr><td>layout (페이지 구성)</td><td><code>reset()</code> 이 <b>건드리지 않는다</b>. 문서마다 <code>reset_layout()</code> 한 번만. 주석: "pdfium 이 짧은 결과를 내고 사이냅으로 넘어가면, reset() 이 pdfium 이 잰 페이지 구성까지 지워 스캔본을 못 가린다"</td><td>사이냅 차례에 지움 <span class="tag e">다름</span></td></tr>
+</table></div>
+
+<h3>B — 실패에는 layout 을 실을 자리가 없다</h3>
+<ul>
+<li>스캔 PDF 는 pdfium 결과가 빈 문자열이라 하이브리드가 짧은 결과로도 못 붙잡고 → 사이냅도 비거나 실패 → <code>Err(ExtractError::Failed(String))</code>.</li>
+<li><code>ExtractError::Failed</code> 는 문자열 하나뿐이고, C 진입점의 오류 JSON <code>{"error":{"kind","message"}}</code> 에도 layout 자리가 없다.</li>
+<li>Python 판은 이 갈래를 따로 다룬다 — <code>cli.py</code> 의 <code>except ExtractError</code> 에서 <code>notes.take_layout()</code> 로 남은 layout 을 꺼내 <code>_scan_pdf_excluded(layout, 0)</code> 이면 처리제외. 주석: "스캔 PDF 는 대개 이 갈래로 온다 … 실측: 사이냅도 0바이트".</li>
+<li>기본 엔진(builtin)은 스캔 PDF 를 <code>Ok("")</code> + layout 으로 돌려주므로 이 문제가 없었다. 사이냅 모드에서만 드러난다.</li>
+</ul>
+</section>
+
+<section id="s3">
+<h2><span class="no">3</span>설계 A — 사이냅으로 넘어가도 layout 유지</h2>
+<p>사이냅 차례에서 <b>partial 만</b> 비운다. layout 은 PDF 파서(자체 파서)가 잰 값이 그대로 남아 어느 엔진의 결과에든 붙는다.</p>
+<div class="out"><div class="label">바뀐 코드(안)</div><pre>// partial 은 '그 결과를 낸 엔진'의 것이어야 하고(사이냅 전문에 1차의 '일부만'이 붙지 않게),
+// layout 은 '문서'의 것이다 — 사이냅은 쪽 구성을 재지 않으므로 PDF 파서가 잰 값을 끝까지 둔다
+// (Python 판 notes.reset() / reset_layout() 와 같은 나눔).
+let mut partial: Option&lt;Partial&gt; = None;
+let mut layout: Option&lt;Layout&gt; = None;
+for name in engines {
+    let got = if name == "snf" {
+        partial = None;                            // layout 은 그대로
+        crate::synap::snf_extract(snf, path, snf_secs)
+    } else {
+        let run = Run::new(opts);
+        let r = extract_raw(path, fmt, &amp;run)…;
+        let (p, l) = run.into_notes();
+        partial = p;
+        layout = l;
+        r
+    };
+    …
+    return Ok(Extracted { …, partial, layout });</pre></div>
+<h3>경우별 결과</h3>
+<div class="tw"><table>
+<tr><th>경우</th><th>text · engine</th><th>partial</th><th>layout 지금 → 바뀐 뒤</th></tr>
+<tr><td>자체 파서가 충분히 읽음</td><td>pdf</td><td>pdf 의 것</td><td>있음 → 있음(같음)</td></tr>
+<tr><td>자체 파서 짧음/빔 → 사이냅이 충분히 읽음</td><td>snf</td><td>없음</td><td><b>없음 → pdf 가 잰 값</b></td></tr>
+<tr><td>둘 다 짧음 → 더 긴 것 채택(2.pdf)</td><td>pdf 또는 snf</td><td>마지막 엔진(snf)의 것 = 없음 — Python 과 같음</td><td><b>없음 → pdf 가 잰 값</b></td></tr>
+<tr><td>사이냅만 모드(<code>synap_only</code>)</td><td>snf</td><td>없음</td><td>없음 → 없음(PDF 파서를 안 돌림 — 바꾸지 않음)</td></tr>
+<tr><td>PDF 가 아닌 문서</td><td>—</td><td>—</td><td>없음 → 없음(layout 은 PDF 파서만 적는다)</td></tr>
+</table></div>
+<div class="callout">사이냅이 이긴 문서에 layout 이 붙으면, 부른 쪽은 <b>사이냅이 읽은 본문 길이</b>와 layout 으로 판정한다(<code>scan_pdf_verdict(pages, scan_pages, body_chars)</code>).
+사이냅이 쪽마다 10자 이상을 읽었다면 처리제외가 아니다 — Python 판과 같은 결론이다.</div>
+<div class="callout warn"><b>그대로 두는 것</b> — 둘 다 짧아 <b>pdf</b> 결과를 채택해도 partial 은 마지막에 돈 snf 의 것(없음)이 된다. Python 판도 같으므로 이번에는 바꾸지 않는다(바꾸면 두 판이 갈린다). <code>synap_only</code> 에서 PDF 의 layout 을 따로 재는 일도 이번 범위 밖이다.</div>
+</section>
+
+<section id="s4">
+<h2><span class="no">4</span>설계 B — 실패에도 layout 싣기</h2>
+<h3>Rust 크레이트(docparse)</h3>
+<div class="out"><div class="label">ExtractError 바뀐 모양(안)</div><pre>pub enum ExtractError {
+    SizeLimit { size: u64, limit: u64, text_kind: bool },
+    Unsupported(Fmt),
+    /// 읽지 못함. reason 은 사람이 읽는 사유(자체 파서 단독이면 빈 문자열 — 지금과 같음).
+    /// layout 은 PDF 파서가 쪽을 재고 나서 실패했을 때만 있다(스캔 PDF 처리제외 판정 재료).
+    Failed { reason: String, layout: Option&lt;Layout&gt; },
+}</pre></div>
+<ul>
+<li>사이냅 폴백의 '전엔진 실패' — 루프가 가진 layout(A 에서 남긴 값)을 싣는다.</li>
+<li>사이냅만 모드 실패 · 자체 파서 단독 실패(<code>extract_builtin</code> 의 <code>None</code>) — layout 은 <code>None</code>(지금과 같은 뜻). 자체 파서 단독은 PDF 를 열지 못한 경우라 잰 쪽이 없다.</li>
+<li><code>Display</code> 는 reason 만 쓴다 — 사람용 문장은 지금과 같다.</li>
+<li>모양이 바뀌므로 크레이트를 직접 쓰는 곳(<code>docparse-ffi</code> · <code>docparse-cli</code>, 이 저장소뿐)을 함께 고친다. 0.x 라 부 버전에서 바꿔도 된다.</li>
+</ul>
+<div class="callout"><b>다른 안과 견줌</b> — ① 전엔진 실패라도 PDF 파서가 빈 결과 + layout 을 냈으면 <code>Ok("")</code> 로 돌려주는 안(기본 엔진과 같은 모양): 부른 쪽은 안 고쳐도 되지만,
+스캔이 아닌 빈 PDF 까지 '실패 → 본문 없음 성공'으로 바뀌어 종료코드 · 실패 집계가 달라진다. ② <code>Failed</code> 는 두고 새 변형을 더하는 안: match 하는 쪽이 새 변형을 빠뜨리기 쉽다.
+→ <b>오류에 layout 을 싣는 안</b>을 고른다. Python 판(실패 갈래에서 layout 으로 판정)과 같은 모양이고, 실패는 실패로 남는다.</div>
+
+<h3>C 진입점(docparse-ffi) — 오류 JSON</h3>
+<div class="out"><div class="label">실패 결과 JSON (layout 은 있을 때만)</div><pre>{ "error": { "kind": "failed",
+             "message": "하이브리드 전엔진 실패(감지=pdf; pdf:empty; snf:…)",
+             <b>"layout": { "pages": 2, "scan_pages": 2 }</b> } }</pre></div>
+<ul>
+<li><code>docparse.h</code> 머리 주석의 '추출 결과 JSON' 설명에 <code>"layout"</code> 을 더한다. 함수 모양 · 상태 코드는 그대로 → <b>ABI 1 유지</b>(버전 규칙: 새 기능은 새 JSON 키로).</li>
+<li>상태 코드는 그대로 <code>DP_ERR_FAILED(5)</code> — 실패는 실패다. 처리제외로 가를지는 부른 쪽이 정한다.</li>
+</ul>
+
+<h3>감싸개 4종</h3>
+<div class="tw"><table>
+<tr><th>감싸개</th><th>지금</th><th>바꿀 것</th></tr>
+<tr><td><code>bindings\python\docparse.py</code></td><td><code>ExtractError</code> 에 <code>kind</code> 만</td><td><code>ExtractError.layout = None | (pages, scan_pages)</code> 속성 추가 · <code>_error()</code> 가 채움</td></tr>
+<tr><td><code>bindings\rust\docparse_dyn.rs</code></td><td><code>Failed { message }</code></td><td><code>Failed { message, layout: Option&lt;Layout&gt; }</code> · <code>from_json</code> 이 읽음</td></tr>
+<tr><td><code>bindings\java\…\DocParse.java</code></td><td>예외가 error 객체 전체(Map)를 들고 있음</td><td>코드 그대로 읽힌다. 편의 메서드 <code>layout()</code> 과 주석만 추가</td></tr>
+<tr><td><code>bindings\php\DocParse.php</code></td><td>예외가 error 배열 전체를 들고 있음</td><td>같음 — <code>layout()</code> 편의 메서드 · 주석</td></tr>
+</table></div>
+<p>모르는 키는 무시하는 감싸개들이라, 새 DLL 을 옛 감싸개로 써도 깨지지 않는다(layout 을 못 볼 뿐).</p>
+
+<h3>dp.exe</h3>
+<ul>
+<li>실패 줄에 layout 과 판정을 붙인다: <code>실패(5 DP_ERR_FAILED): 하이브리드 전엔진 실패(…) layout={"pages":2,"scan_pages":2} 판정=스캔PDF(처리제외)</code> — 본문 0자로 <code>docparse_scan_pdf_verdict</code> 를 부른다(Python 판 실패 갈래와 같은 식).</li>
+<li><code>dump</code> 의 <code>index.json</code> 실패 줄에도 <code>layout</code> 을 남긴다. <code>compare</code> 는 layout 을 비교하지 않는다(지금처럼 rc · fmt · engine · 본문).</li>
+</ul>
+</section>
+
+<section id="s5">
+<h2><span class="no">5</span>본문 밖 글(C) — 2.pdf · 사이냅 비교</h2>
+<p>MpowerClassify 세션 보고를 이 PC 에서 다시 확인했다(PyMuPDF 1.28.2 로 주석 목록 · <code>dp.exe</code> 로 본문).</p>
+<h3>파일 생김새</h3>
+<ul>
+<li><code>D:\sample\scanpdf\2.pdf</code> — 7MB, 33쪽. 만든 프로그램: Microsoft PowerPoint(Microsoft 365) 내보내기.</li>
+<li>33쪽 모두 쪽 전체를 덮는 그림 한 장(1536×864)이 바탕 — 슬라이드를 그림으로 만들어 붙인 뒤 내보낸 꼴이라, 그림 속 글자("조직의 생존을 위협하는 보안이슈!", "100조" 등)는 글자가 아니다.</li>
+<li>쪽 본문 글자는 33쪽 통틀어 기호 3개(13쪽 〮 · 22쪽 ∽ · 27쪽 …)뿐 → docparse 는 3자, 33쪽 중 32쪽을 그림 쪽으로 보고 <b>스캔 PDF → 처리제외</b>. 이 판정은 맞다.</li>
+</ul>
+<h3>사이냅이 더 읽은 글 — 글상자 주석(FreeText) 8개</h3>
+<div class="tw"><table>
+<tr><th>쪽</th><th>종류</th><th>/Contents</th><th>작성자 · 수정 시각</th></tr>
+<tr><td>3</td><td>FreeText</td><td>(2023년 국정원 산업기밀보호센터)</td><td>rjaeh · 2024-10-04 12:19</td></tr>
+<tr><td>4</td><td>FreeText ×3</td><td>(2024년 5월) · (2024년 5월) · (2024년 7월)</td><td>rjaeh · 12:20~12:22</td></tr>
+<tr><td>8</td><td>FreeText</td><td>문서중앙화 개념도</td><td>rjaeh · 12:26</td></tr>
+<tr><td>10</td><td>FreeText · Stamp</td><td>GS인증 · (도장은 글 없음)</td><td>rjaeh · 14:47 · 14:50</td></tr>
+<tr><td>31</td><td>FreeText ×2 · Stamp</td><td>문서중앙화 구축사례 · 행안부 17만명, 국세청 2만명, 한국가스공사 5천명 등 500여개의 다양한 고객사 · (도장은 글 없음)</td><td>rjaeh · 13:08~14:32</td></tr>
+</table></div>
+<ul>
+<li>PDF 를 연 뒤 편집기로 덧붙인 주석이다. 글자는 쪽 본문이 아니라 주석에 들어 있다 — 8개 모두 <code>/Contents</code> 에 글이 있고, 겉모양(appearance)에도 같은 글이 그려져 있다.</li>
+<li>글자 수: <code>/Contents</code> 합계 119자(공백 빼면 103자). 사이냅은 109자를 읽었다고 보고됨(공백 · 줄바꿈 셈 차이).</li>
+<li>pdfium 의 글자 추출(<code>FPDFText_*</code>, pdfium-render <code>page.text()</code>)은 <b>쪽 본문만</b> 읽고 주석은 읽지 않는다. Python 판 pypdfium2 도 같다. 사이냅은 주석 글까지 읽는다.</li>
+</ul>
+<h3>판정이 갈린 과정</h3>
+<ol>
+<li>Python 판: 자체 파서가 3자만 읽자 기본 동작대로 사이냅으로 다시 읽어 주석 글을 얻었다.</li>
+<li>그 글의 "국정원 산업기밀보호센터" 속 "기밀"이 '기밀 표식' · '대외비/기밀 스탬프' 두 규칙에 걸려 <b>등급 C</b>.</li>
+<li>그런데 이 "기밀"은 피해 통계의 <b>출처 기관 이름</b>이지 문서가 기밀이라는 표시가 아니다 → <b>오탐에 가깝다</b>.</li>
+<li>Rust 판: 사이냅을 쓰지 않아 3자 → 처리제외.</li>
+</ol>
+<div class="callout warn">주석 글을 읽어도 2.pdf 는 <code>scan_pdf_verdict</code> 기준으로 여전히 스캔 PDF 다 — 본문 3+103 = 106자 ÷ 33쪽 ≈ 3.2자/쪽 &lt; 10자/쪽, 스캔 쪽 32/33.
+Python 판이 처리제외와 별개로 등급 C 를 낸 것은 분류 쪽 순서(등급 판정과 처리제외 표식이 함께 붙는 구조)로 보인다 — <b>MpowerClassify 쪽에서 확인할 일</b>(<a href="#s9">9장</a>).</div>
+
+<h3>PDF 만의 일인가 — 사이냅과 직접 비교</h3>
+<p>이 PC 의 사이냅(<code>MpowerClassify\resources\synap\windows\snf_exe.exe</code>, Synap Document Filter 4.29.0)과 <code>dp.exe</code> 0.1.2 기본 엔진을 같은 문서에 돌렸다.
+형식마다 본문 밖 자리에 서로 다른 표지 낱말을 넣은 시험 문서를 지어내 어느 쪽이 읽는지 보고, <code>D:\sample</code> 의 실제 문서 42건도 함께 돌렸다.</p>
+<div class="tw"><table>
+<tr><th>형식</th><th>본문 밖 글</th><th>docparse</th><th>사이냅</th><th>근거</th></tr>
+<tr><td rowspan="4">PDF</td><td>글상자(FreeText) 주석</td><td><span class="tag e">안 읽음</span></td><td>읽음</td><td>시험 문서 · 2.pdf</td></tr>
+<tr><td>숨긴 글상자(Hidden 표시)</td><td>안 읽음</td><td>읽음</td><td>시험 문서</td></tr>
+<tr><td>서식 칸(입력란) 값</td><td><span class="tag e">안 읽음</span></td><td>읽음</td><td>시험 문서</td></tr>
+<tr><td>쪽지(Text) 주석</td><td>안 읽음</td><td>안 읽음</td><td>시험 문서</td></tr>
+<tr><td rowspan="2">docx</td><td>메모(comment)</td><td><span class="tag e">안 읽음</span></td><td>읽음</td><td>시험 문서</td></tr>
+<tr><td>머리글 · 꼬리글 · 표</td><td>읽음</td><td>읽음</td><td>시험 문서</td></tr>
+<tr><td rowspan="3">pptx</td><td>SmartArt 글(<code>ppt/diagrams/data*.xml</code>)</td><td><span class="tag e">안 읽음</span></td><td>읽음</td><td>실제 문서 <code>35_2013년 부설연구소 신입사원 입문교육.pptx</code> — 사이냅만 12줄 더(예: "영업/제안[▶영업,이행]")</td></tr>
+<tr><td>발표자 노트</td><td>읽음</td><td><span class="tag w">안 읽음</span></td><td>시험 문서</td></tr>
+<tr><td>숨긴 슬라이드</td><td>읽음</td><td>읽음</td><td>시험 문서</td></tr>
+<tr><td>xlsx</td><td>셀 메모 · 숨긴 시트</td><td>읽음</td><td>읽음</td><td>실제 엑셀 파일에 메모 · 숨김을 넣어 비교(사이냅은 openpyxl 로 저장한 xlsx 를 0바이트로 실패해서)</td></tr>
+<tr><td>hwp · hwpx</td><td>메모</td><td colspan="2">확인 못 함 — 메모가 든 샘플이 없다. docparse 코드에는 메모를 읽는 곳이 없다</td><td>—</td></tr>
+<tr><td>docx</td><td>각주 · 미주 · SmartArt</td><td colspan="2">확인 못 함 — 샘플이 없다. docparse 는 <code>word/document.xml</code> · 머리글 · 꼬리글만 연다</td><td>—</td></tr>
+</table></div>
+<p>실제 문서 42건(<code>D:\sample</code>, pdf · docx · pptx · xlsx · hwp · doc)에서 글자 수(공백 제외)가 2% 넘게 갈린 것은 7건이고, 위 표의 자리(2.pdf 주석 · pptx SmartArt) 말고는
+docparse 가 더 많이 읽은 큰 PDF 3건 · 필드 코드("PAGE 25/ NUMPAGES 31")를 그대로 낸 <code>.doc</code> 1건 · 줄바꿈 차이 docx 1건이었다. hwp 는 모두 2% 안에서 같았다.</p>
+<div class="callout"><b>결론</b> — PDF 만의 일이 아니다. 사이냅과 갈리는 자리는 <b>PDF 글상자 · PDF 서식 칸 · docx 메모 · SmartArt</b> 넷이고, 모두 '문서를 연 사람이 화면에서 보는 글'이다.
+그래서 C 는 이 넷을 함께 다루고 <b>기본으로 켠다</b>.</div>
+</section>
+
+<section id="s6">
+<h2><span class="no">6</span>설계 C — 본문 밖 글 읽기(기본 켬)</h2>
+<h3>무엇을 읽나</h3>
+<div class="tw"><table>
+<tr><th>형식</th><th>읽는 것</th><th>어디서 · 어떻게</th><th>붙이는 자리</th></tr>
+<tr><td rowspan="2">PDF</td><td>글상자(FreeText) 주석</td><td>pdfium-render <code>page.annotations()</code> → <code>PdfPageAnnotationType::FreeText</code> → <code>contents()</code>(<code>/Contents</code>). <code>is_hidden()</code> 이면 건너뜀</td><td>그 쪽 본문 뒤, 주석 순서대로 한 줄씩</td></tr>
+<tr><td>서식 칸 값</td><td><code>Widget</code> 주석 → <code>form_field()</code> → 글 칸 · 콤보 상자의 <code>value()</code>. 빈 값 · 체크 상자 · 단추는 건너뜀</td><td>그 쪽 글상자 뒤</td></tr>
+<tr><td>docx</td><td>메모(comment)</td><td><code>word/comments.xml</code> 의 <code>&lt;w:comment&gt;</code> 안 문단 글 — 본문 문단과 같은 읽개(<code>w:t</code> · 줄바꿈 규칙)</td><td>본문 뒤, 머리글 · 꼬리글 앞(사이냅과 같은 차례)</td></tr>
+<tr><td>pptx</td><td rowspan="2">SmartArt 글</td><td>슬라이드 관계(<code>slideN.xml.rels</code>)의 <code>diagramData</code> → <code>ppt/diagrams/dataN.xml</code> 의 <code>&lt;dgm:pt&gt;</code> 글(<code>a:t</code>). 같은 글이 그려진 <code>drawingN.xml</code>(캐시)은 읽지 않는다 — 두 번 나오지 않게</td><td>그 슬라이드 글 뒤</td></tr>
+<tr><td>docx</td><td><code>word/document.xml.rels</code> 의 <code>diagramData</code> → <code>word/diagrams/dataN.xml</code>(구조는 pptx 와 같다)</td><td>본문 뒤(메모 앞)</td></tr>
+</table></div>
+<h3>사이냅과 다르게 두는 것</h3>
+<div class="tw"><table>
+<tr><th>자리</th><th>사이냅</th><th>docparse(설계)</th><th>까닭</th></tr>
+<tr><td>숨긴 PDF 글상자</td><td>읽음</td><td>안 읽음</td><td>문서를 연 사람에게 안 보이는 글 — 분류 근거로 쓰면 사람이 확인할 수 없다</td></tr>
+<tr><td>PDF 쪽지(Text) 주석</td><td>안 읽음</td><td>안 읽음</td><td>둘 다 안 읽는다 — 접힌 검토 의견</td></tr>
+<tr><td>pptx 발표자 노트</td><td>안 읽음</td><td>읽음(지금 그대로)</td><td>이미 읽고 있는 글을 빼면 결과가 줄어든다(결과 바뀜). 사이냅보다 많이 읽는 쪽은 두기로</td></tr>
+<tr><td>Stamp · 그 밖의 주석</td><td>—</td><td>안 읽음</td><td>대개 그림 · 표시 — 글이 없다(2.pdf 의 도장 2개도 글 없음)</td></tr>
+</table></div>
+<h3>옵션</h3>
+<div class="out"><div class="label">옵션 JSON (docparse_extract)</div><pre>{ "extra_text": true }    // 기본 true = 위 표의 본문 밖 글을 읽는다. false = 0.1.x 와 같은 본문</pre></div>
+<ul>
+<li><b>기본 켬</b> — 사이냅과 다르게 읽히던 것을 맞추는 것이 목적이다. 끄는 값은 0.1.x 결과와 견주거나(평가셋 재현) 문제가 생겼을 때 되돌리는 용도다.</li>
+<li>하나의 옵션으로 넷을 함께 켜고 끈다 — 형식별로 나누면 쓰는 쪽이 조합을 관리해야 한다. 나눌 필요가 생기면 값을 객체로 넓힌다(<code>{"extra_text": {"pdf_forms": false}}</code>), 지금은 참/거짓만.</li>
+<li><code>ExtractOptions.extra_text: bool</code>(기본 true) · FFI 옵션 키 · 감싸개 4종의 옵션 인자(Python <code>extract(…, extra_text=True)</code> 등) · <code>dp.exe --no-extra-text</code>.</li>
+<li>사이냅 폴백과의 관계: 자체 파서가 본문 밖 글까지 읽으면 짧은 결과가 줄어, 사이냅으로 넘어가는 문서가 줄 수 있다(같은 글을 사이냅 없이 얻는다).</li>
+<li>상한(G5)과 같은 루프 안에서 돈다 — PDF 쪽 상한 · 시간 상한에서 멈추면 주석 · 서식 칸도 거기까지. docx · pptx 의 추가 부품도 OOXML 시간 상한 안에서 읽는다.</li>
+</ul>
+<h3>스캔 판정과의 관계</h3>
+<ul>
+<li><code>pdf_is_scan_page</code>(쪽 단위 판정)는 <b>쪽 본문 글자만</b> 본다 — 주석 · 서식 칸은 쪽 위에 덧붙인 것이라, 그림이 쪽을 덮은 스캔 쪽인지를 바꾸면 안 된다. <code>scan_pages</code> 는 옵션과 무관하게 같다.</li>
+<li><code>scan_pdf_verdict</code> 의 본문 길이는 부른 쪽이 최종 본문으로 센다 → 주석 글만큼 늘어난다. 쪽당 10자 기준이라 주석 몇 줄로는 잘 뒤집히지 않는다(2.pdf: 3.2자/쪽 → 여전히 스캔 PDF).</li>
+</ul>
+<h3>한계</h3>
+<ul>
+<li><code>/Contents</code> 가 비고 겉모양(appearance)에만 글이 그려진 글상자는 못 읽는다 — 겉모양 글 추출은 pdfium 공개 API 로 쉽지 않다. 2.pdf 8개는 모두 <code>/Contents</code> 가 있다.</li>
+<li>SmartArt 는 <code>dataN.xml</code> 의 점(pt) 차례대로 읽는다 — 화면에 그려진 차례와 다를 수 있다(사이냅의 차례도 확인 대상).</li>
+<li>hwp · hwpx 메모 · docx 각주/미주는 이번 범위 밖 — 샘플로 사이냅과 비교한 뒤 정한다(<a href="#s11">11장</a>).</li>
+</ul>
+<div class="callout"><b>다른 안</b> — ① 기본 끔(개정 전 안): 0.1.x 결과를 지키지만 사이냅과의 차이가 그대로 남는다 — 사이냅을 안 쓰는 Rust 판과 쓰는 Python 판이 계속 갈린다.
+② 본문에 섞지 않고 결과 JSON 에 <code>"extra": [{"kind","page","text"}]</code> 로 따로 주기: 본문이 안 바뀌지만 감싸개 · 분류 쪽까지 새 필드를 다뤄야 쓸 수 있고, 사이냅(본문에 섞음)과 모양이 다르다.
+→ <b>본문에 붙이고 기본 켬</b>을 고른다.</div>
+<div class="callout warn"><b>오탐은 규칙 쪽 일</b> — 본문 밖 글이 늘면 2.pdf 의 "국정원 산업기밀보호센터" 같은 출처 문구가 규칙에 걸릴 수 있다. 기관 이름 속 "기밀"을 기밀 표식에서 빼는 일은
+MpowerClassify 규칙(ruleset)에서 다룬다. docparse 는 문서에 있는 글을 읽을 뿐 걸러내지 않는다.</div>
+</section>
+
+<section id="s7">
+<h2><span class="no">7</span>호환 · 결과 바뀜</h2>
+<div class="tw"><table>
+<tr><th>항목</th><th>A</th><th>B</th><th>C</th></tr>
+<tr><td>본문(text)</td><td>그대로</td><td>그대로</td><td><b>바뀜</b> — 본문 밖 글이 든 문서만 늘어난다(<code>extra_text:false</code> 면 0.1.x 와 같음)</td></tr>
+<tr><td>CHANGELOG 표시</td><td colspan="2">결과 바뀜 없음 — "사이냅 폴백에서 layout 이 붙는다 · 실패에 layout" 을 적는다(처리제외 판정이 늘 수 있음)</td><td><b>결과 바뀜</b> — 어떤 문서가 늘어나는지(PDF 글상자 · 서식 칸 · docx 메모 · SmartArt) 적는다. 쓰는 프로젝트는 평가셋을 다시 돌린다</td></tr>
+<tr><td>C ABI</td><td>그대로</td><td>그대로(새 JSON 키)</td><td>그대로(새 옵션 키)</td></tr>
+<tr><td>Rust 크레이트 API</td><td>그대로</td><td><code>ExtractError::Failed</code> 모양 바뀜</td><td><code>ExtractOptions</code> 에 칸 추가(<code>Default</code> 로 채움)</td></tr>
+<tr><td>옛 감싸개 + 새 DLL</td><td>문제없음</td><td>문제없음(layout 을 못 볼 뿐)</td><td>새 DLL 이면 옵션을 안 보내도 <b>켜진다</b>(기본값). 끄려면 옵션을 보낸다</td></tr>
+<tr><td>기본 엔진(builtin) 결과</td><td colspan="2">바뀌지 않는다 — A · B 는 사이냅 모드에서만 차이가 난다</td><td>바뀐다(본문 밖 글)</td></tr>
+</table></div>
+<p>버전: C 가 본문을 바꾸므로 <b>0.2.0</b> 으로 올린다(ABI 1 그대로). A · B 만 먼저 낸다면 0.1.3.</p>
+</section>
+
+<section id="s8">
+<h2><span class="no">8</span>시험 계획</h2>
+<h3>단위 시험(cargo test)</h3>
+<ul>
+<li><b>가짜 snf</b> — 시험이 임시 폴더에 작은 스크립트(Windows <code>.cmd</code> · Linux <code>.sh</code>)를 써서 <code>synap_exe</code> 로 준다. snf 호출 모양(<code>-U8 -NO_WITHPAGE 입력 출력</code>)대로 넷째 인자 파일에 정해 둔 글을 쓴다 / 아무것도 안 쓴다 / 실패 코드로 끝난다 — 세 가지.</li>
+<li>A: 스캔 PDF + 가짜 snf(충분한 글) → <code>engine=snf</code>, <code>layout=Some(2,2)</code>, <code>partial=None</code>.</li>
+<li>A: 짧은 PDF(2.pdf 꼴: 그림 쪽 + 기호 몇 자) + 실패 snf → 짧은 결과 채택, layout 있음.</li>
+<li>B: 스캔 PDF + 빈 snf / 실패 snf → <code>Err(Failed{layout: Some(2,2)})</code>, FFI 오류 JSON 에 <code>"layout"</code>.</li>
+<li>B: 자체 파서 단독 실패 · 사이냅만 실패 → layout 없음.</li>
+<li>C(PDF): 글상자 · 서식 칸이 그 쪽 본문 뒤에 나온다. 숨긴 글상자 · 쪽지 주석 · 빈 서식 칸 · 체크 상자는 안 나온다. <code>scan_pages</code> 는 켜고 끄고 같다.</li>
+<li>C(docx): 메모 글이 본문 뒤 · 머리글 앞에 나온다. SmartArt 글이 한 번만(캐시 drawing 과 겹치지 않게) 나온다.</li>
+<li>C(pptx): SmartArt 글이 그 슬라이드 글 뒤에 나온다. 발표자 노트는 지금처럼 나온다.</li>
+<li>C(끔): <code>extra_text:false</code> 면 모든 시험 문서 본문이 0.1.2 와 같다.</li>
+</ul>
+<h3>시험 문서 (<code>tools\make_samples.py</code> 에 더함 — 모두 지어낸 내용)</h3>
+<div class="tw"><table>
+<tr><th>파일</th><th>내용</th><th>만드는 법</th></tr>
+<tr><td><code>주석_예시.pdf</code></td><td>그림으로 덮은 3쪽 + 글상자 2 · 숨긴 글상자 1 · 쪽지 1 · 도장 1 · 글 서식 칸 1 · 체크 상자 1</td><td>PyMuPDF(<code>add_freetext_annot</code> · <code>add_text_annot</code> · <code>add_widget</code>)</td></tr>
+<tr><td><code>메모_예시.docx</code></td><td>본문 · 메모 1 · 머리글 · 꼬리글</td><td>python-docx 1.2(<code>add_comment</code>)</td></tr>
+<tr><td><code>SmartArt_예시.pptx</code> · <code>SmartArt_예시.docx</code></td><td>SmartArt 한 개(글 3개) + 발표자 노트(pptx)</td><td>도구로 SmartArt 를 만들 수 없어, 작은 OOXML 부품(<code>dataN.xml</code> · 관계)을 직접 써 넣는다</td></tr>
+</table></div>
+<ul>
+<li>사이냅은 openpyxl · python-docx 로 저장한 일부 파일을 못 읽는다(xlsx 에서 0바이트 실측) — 사이냅 비교는 시험 문서가 아니라 실제 문서로 손으로 한다.</li>
+<li>실제 파일 <code>D:\sample\scanpdf\1.pdf</code> · <code>2.pdf</code> · <code>35_2013년 부설연구소 신입사원 입문교육.pptx</code> 는 <code>tests\private\</code>(git 제외)에 두고 손으로 확인.</li>
+</ul>
+<h3>결과 바뀜 확인</h3>
+<ul>
+<li><code>dp dump tests\samples.txt</code> 를 고치기 전 · 후로 뽑아 <code>dp compare</code>:
+  <code>--no-extra-text</code> 로 뽑은 것은 <b>다름 0</b>, 기본(켬)으로 뽑은 것은 본문 밖 글이 든 문서만 다름.</li>
+<li><code>D:\sample</code> 42건을 사이냅과 다시 비교 — 5장 표의 '안 읽음' 자리가 맞춰졌는지(2.pdf · SmartArt pptx 의 차이가 사라졌는지) 본다.</li>
+<li>사이냅 폴백(가짜 snf)으로도 고치기 전 · 후 dump 를 비교해, A · B 로는 본문이 같고 index 의 layout 만 생긴 것을 확인.</li>
+</ul>
+<h3>손 확인(기대 화면)</h3>
+<div class="out"><div class="label">1.pdf — 사이냅 폴백, 사이냅 실패</div><pre>실패(5 DP_ERR_FAILED): 하이브리드 전엔진 실패(감지=pdf; pdf:empty; snf:…) layout={"pages":2,"scan_pages":2} 판정=스캔PDF(처리제외)</pre></div>
+<div class="out"><div class="label">2.pdf — 기본 엔진(본문 밖 글 켬)</div><pre>… (2023년 국정원 산업기밀보호센터) … 행안부 17만명, 국세청 2만명, 한국가스공사 5천명 등 500여개의 다양한 고객사
+[dp] fmt=pdf engine=pdf chars≈130 … layout={"pages":33,"scan_pages":32} 판정=스캔PDF(처리제외)</pre></div>
+<div class="out"><div class="label">2.pdf — 사이냅 폴백, 사이냅 실패 (A 만 본 경우: <code>--no-extra-text</code>)</div><pre>[dp] fmt=pdf engine=pdf chars=7 73ms layout={"pages":33,"scan_pages":32} 판정=스캔PDF(처리제외)</pre></div>
+</section>
+
+<section id="s9">
+<h2><span class="no">9</span>MpowerClassify 후속(다른 저장소)</h2>
+<p>docparse 만 고쳐서는 1.pdf 가 처리제외로 바뀌지 않는다. MpowerClassify 에서 새 정보를 읽어야 한다. 이 설계서 범위 밖이며 따로 진행한다.</p>
+<div class="tw"><table>
+<tr><th>곳</th><th>할 일</th><th>필요한 것</th></tr>
+<tr><td><code>third_party\docparse\</code></td><td>0.2.0 DLL/so 로 바꿔 넣기</td><td>A · B · C</td></tr>
+<tr><td><code>Rust\src\docparse.rs</code></td><td>오류 JSON 의 <code>layout</code> 을 자기 <code>ExtractError::Failed</code> 에 싣기</td><td>B</td></tr>
+<tr><td><code>Rust\src\main.rs</code> 추출 실패 갈래</td><td>실패에 layout 이 있고 <code>scan_pdf_verdict(pages, scan_pages, 0)</code> 이면 <code>extract_failed</code> 대신 처리제외(Python <code>cli.py</code> except 갈래와 같은 식)</td><td>B</td></tr>
+<tr><td>사이냅 폴백 성공 갈래</td><td>고칠 것 없음 — A 로 layout 이 붙으면 지금 코드(<code>layout.filter(scan_pdf_verdict)</code>)가 그대로 판정</td><td>A</td></tr>
+<tr><td>평가셋</td><td>C 로 본문이 늘어난 문서(PDF 글상자 · 서식 칸 · docx 메모 · SmartArt)의 등급 변화를 확인 — CHANGELOG '결과 바뀜'</td><td>C</td></tr>
+<tr><td>Python 판 자체 파서(pypdfium2 등)</td><td>Python 판이 docparse 를 쓰지 않는 갈래가 남아 있으면 같은 글을 못 읽는다 — RustEngine(docparse) 갈래로 모으거나 같은 읽기를 더한다</td><td>C</td></tr>
+<tr><td>규칙(ruleset)</td><td>기관 이름 속 "기밀"(예: 산업기밀보호센터) 오탐 다루기 · 처리제외인데 등급이 붙는 경우 확인</td><td>—</td></tr>
+</table></div>
+</section>
+
+<section id="s10">
+<h2><span class="no">10</span>작업 순서 · 바꿀 파일</h2>
+<ol>
+<li><b>A</b> — <code>crates\docparse\src\extract.rs</code> 폴백 루프(partial · layout 나눔) + 단위 시험(가짜 snf).</li>
+<li><b>B</b> — <code>ExtractError::Failed { reason, layout }</code> → <code>extract.rs</code> 의 <code>Failed</code> 만드는 곳 3곳 · <code>Display</code>; <code>crates\docparse-ffi\src\lib.rs</code> 오류 JSON · 시험; <code>include\docparse.h</code> 주석.</li>
+<li><b>C(PDF)</b> — <code>extract.rs</code> 의 <code>pdf_text</code> 쪽 루프에 글상자 · 서식 칸 읽기(쪽 판정은 그대로).</li>
+<li><b>C(OOXML)</b> — docx: <code>word/comments.xml</code> · <code>word/diagrams/data*.xml</code>; pptx: 슬라이드 관계의 <code>diagramData</code>. 본문 문단 읽개를 그대로 쓴다.</li>
+<li><b>C(옵션)</b> — <code>ExtractOptions.extra_text</code>(기본 true) · FFI 옵션 키 <code>"extra_text"</code> · <code>docparse.h</code> 옵션 설명.</li>
+<li>감싸개 4종(<code>bindings\python</code> · <code>rust</code> · <code>java</code> · <code>php</code>) — 오류 layout · <code>extra_text</code> 인자 + 예제 주석.</li>
+<li><code>crates\docparse-cli</code> — 실패 줄 layout · 판정, dump index 에 layout, <code>--no-extra-text</code>.</li>
+<li><code>tools\make_samples.py</code> — 주석_예시.pdf · 메모_예시.docx · SmartArt_예시.pptx/.docx, <code>tests\samples.txt</code> 갱신.</li>
+<li>문서 — <code>CHANGELOG.md</code>(0.2.0, 결과 바뀜) · <code>README.md</code> · <code>doc\빌드_CLI시험_설명서.html</code>(옵션 · 실패 줄) · <code>doc\docparse-라이브러리-연동설명서.html</code>(오류 layout · 옵션).</li>
+<li>시험 — <code>cargo test --workspace</code>, dump/compare, <code>D:\sample</code> 사이냅 재비교, 1.pdf · 2.pdf 손 확인, win-build · linux-build.</li>
+</ol>
+<p>A · B 와 C 는 서로 기대지 않는다. A · B 만 먼저 내보내야 하면 0.1.3(결과 바뀜 없음), C 까지 함께면 0.2.0.</p>
+</section>
+
+<section id="s11">
+<h2><span class="no">11</span>정할 것</h2>
+<div class="tw"><table>
+<tr><th>질문</th><th>제안</th></tr>
+<tr><td>C 를 A · B 와 같은 판에 넣나</td><td>넣는다(0.2.0, 기본 켬). MpowerClassify 가 바로 올리기 어렵다면 A · B 만 0.1.3 으로 먼저</td></tr>
+<tr><td>숨긴 PDF 글상자도 읽어 사이냅과 완전히 맞추나</td><td>안 읽음 — 안 보이는 글을 분류 근거로 쓰지 않는다. 사이냅과의 차이는 이것 하나로 남는다</td></tr>
+<tr><td>pptx 발표자 노트를 사이냅처럼 빼나</td><td>빼지 않음 — 지금 읽는 글을 줄이면 결과 바뀜이고, 노트도 문서 작성자가 쓴 글이다</td></tr>
+<tr><td>본문 밖 글 앞에 표식(예: "[메모]")을 다나</td><td>안 담 — 사이냅과 같은 모양이어야 두 판 본문이 맞는다</td></tr>
+<tr><td>hwp · hwpx 메모, docx 각주/미주</td><td>메모 · 각주가 든 실제 샘플을 구해 사이냅과 비교한 뒤 다음 판에서 정한다</td></tr>
+<tr><td>B 의 Rust API 를 깨도 되나</td><td>된다 — 크레이트를 직접 쓰는 곳은 이 저장소뿐(외부는 DLL · JSON)</td></tr>
+</table></div>
+</section>
+
+<footer>DocParse-rust 설계서 · 2026-11-18 개정 1 · 관측 값은 이 PC 의 dp.exe 0.1.2 · 사이냅 snf_exe 4.29.0 · PyMuPDF 1.28.2 로 확인했다. 원 보고: MpowerClassify 작업 세션.</footer>
+</div>
+</body>
+</html>

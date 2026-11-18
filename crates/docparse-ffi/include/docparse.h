@@ -22,6 +22,8 @@
  *     "pdfium_lib": null,                  // null = 이 DLL 폴더 → 실행파일 폴더 → 시스템
  *     "label": null,                       // 로그에 적을 문서 이름
  *     "fmt": null,                         // 주면 감지를 건너뛰고 그 형식으로
+ *     "extra_text": true,                  // 본문 밖 글도 읽기(0.2.0~): PDF 글상자 주석 · 서식 칸 값,
+ *                                          //   docx 메모, docx/pptx SmartArt. false = 0.1.x 본문
  *     "limits": { "parser_timeout_secs": 60, "max_pdf_pages": 3000,
  *                 "max_file_bytes": 104857600, "max_file_bytes_text": 104857600,
  *                 "snf_timeout_secs": 60, "min_text_len": 20 } }
@@ -33,6 +35,9 @@
  *           "layout":  null | {"pages":800,"scan_pages":3} }
  *   실패: { "error": { "kind": "size_limit"|"unsupported"|"failed"|"arg"|"panic",
  *                      "message": "...", ... } }
+ *         kind=failed 이고 PDF 파서가 쪽을 잰 뒤 실패했으면(0.2.0~)
+ *         "layout": {"pages":2,"scan_pages":2} 이 함께 온다 — 사이냅도 못 읽은 스캔 PDF 를
+ *         docparse_scan_pdf_verdict(pages, scan_pages, 0) 으로 '처리제외'로 가를 재료.
  */
 #ifndef DOCPARSE_H
 #define DOCPARSE_H

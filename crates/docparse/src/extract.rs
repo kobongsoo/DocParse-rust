@@ -68,6 +68,9 @@ impl Engine {
 //                     실행파일 옆 → 시스템 순으로 찾는다
 // -필드: clean      = true 면 6단계 정제까지(기본). false 면 엔진이 뽑은 원시 텍스트
 // -필드: label      = 로그에 적을 문서 이름(None 이면 경로)
+// -필드: extra_text = true 면 본문 밖 글도 읽는다(기본). PDF 글상자 주석 · PDF 서식 칸 값 ·
+//                     docx 메모 · docx/pptx SmartArt. false 면 0.1.x 와 같은 본문
+//                     (설계: plan/PDF-layout보존-본문밖글읽기-설계-20261118.html §6)
 //------------------------------------------------------------------
 #[derive(Debug, Clone)]
 pub struct ExtractOptions {
@@ -76,6 +79,7 @@ pub struct ExtractOptions {
     pub pdfium_lib: Option<PathBuf>,
     pub clean: bool,
     pub label: Option<String>,
+    pub extra_text: bool,
 }
 
 impl Default for ExtractOptions {
@@ -94,6 +98,8 @@ impl Default for ExtractOptions {
             pdfium_lib: None,
             clean: true,
             label: None,
+            // 사이냅이 읽는 '화면에 보이는 본문 밖 글'을 기본으로 함께 읽는다
+            extra_text: true,
         }
     }
 }
@@ -150,13 +156,17 @@ pub struct Extracted {
 //
 // -필드: SizeLimit   = 크기 상한을 넘어 읽지 않았다(깨진 파일과 구분)
 // -필드: Unsupported = 자체 파서가 없는 포맷(Builtin 엔진일 때)
-// -필드: Failed      = 엔진이 읽지 못했다. 사이냅 모드면 엔진별 사유, Builtin 은 빈 문자열
+// -필드: Failed      = 엔진이 읽지 못했다.
+//                       reason = 사이냅 모드면 엔진별 사유, Builtin 은 빈 문자열
+//                       layout = PDF 파서가 쪽을 재고 나서 실패했으면 그 페이지 구성.
+//                                부른 쪽이 '스캔 PDF 처리제외'를 가리는 재료다
+//                                (사이냅도 못 읽은 스캔 PDF 가 실패로만 남지 않게)
 //------------------------------------------------------------------
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtractError {
     SizeLimit { size: u64, limit: u64, text_kind: bool },
     Unsupported(Fmt),
-    Failed(String),
+    Failed { reason: String, layout: Option<Layout> },
 }
 
 impl std::fmt::Display for ExtractError {
@@ -176,7 +186,7 @@ impl std::fmt::Display for ExtractError {
                 write!(f, "{}", h.reason())
             }
             ExtractError::Unsupported(fmt) => write!(f, "지원하지 않는 포맷(감지={})", fmt.as_str()),
-            ExtractError::Failed(why) => write!(f, "{}", why),
+            ExtractError::Failed { reason, .. } => write!(f, "{}", reason),
         }
     }
 }
@@ -193,10 +203,12 @@ impl std::error::Error for ExtractError {}
 // -필드: pdfium_lib = pdfium 경로(지정값)
 // -필드: partial    = 부분 추출 표식(파서가 적는다)
 // -필드: layout     = PDF 페이지 구성(PDF 파서가 적는다)
+// -필드: extra_text = 본문 밖 글(주석 · 메모 · SmartArt)도 읽을지
 //------------------------------------------------------------------
 pub(crate) struct Run<'a> {
     limits: &'a Limits,
     pdfium_lib: Option<&'a Path>,
+    extra_text: bool,
     partial: RefCell<Option<Partial>>,
     layout: RefCell<Option<Layout>>,
 }
@@ -216,6 +228,7 @@ impl<'a> Run<'a> {
         Run {
             limits: &opts.limits,
             pdfium_lib: opts.pdfium_lib.as_deref(),
+            extra_text: opts.extra_text,
             partial: RefCell::new(None),
             layout: RefCell::new(None),
         }
@@ -340,7 +353,8 @@ pub fn extract_as(path: &Path, fmt: Fmt, opts: &ExtractOptions) -> Result<Extrac
                     log::info!("추출 engine=snf(감지={}) file={} chars={}", fmt.as_str(), label, t.chars().count());
                     Ok(Extracted { text: finish(&t), engine: "snf", fmt, partial: None, layout: None })
                 }
-                Err(e) => Err(ExtractError::Failed(format!("snf:{}", e))),
+                // 사이냅만 모드는 PDF 파서를 돌리지 않아 잰 쪽이 없다
+                Err(e) => Err(ExtractError::Failed { reason: format!("snf:{}", e), layout: None }),
             };
         }
         // 사이냅 폴백 모드 — 자체 파서가 있으면 1차, 사이냅은 언제나 마지막.
@@ -348,19 +362,25 @@ pub fn extract_as(path: &Path, fmt: Fmt, opts: &ExtractOptions) -> Result<Extrac
         let primary = if has_builtin(fmt) { fmt.as_str() } else { "snf" };
         let mut reasons: Vec<String> = vec![];
         let mut best_short: Option<(&'static str, String)> = None;
-        // 마지막으로 시도한 엔진이 남긴 표식 — 분리 전에는 엔진마다 메모를 비웠으므로,
-        // 결과에 붙는 표식은 언제나 '마지막에 돈 엔진'의 것이었다. 그 규칙을 그대로 지킨다.
-        let mut notes: (Option<Partial>, Option<Layout>) = (None, None);
+        // 두 표식은 수명이 다르다(파이썬 판 notes.reset() / reset_layout() 와 같은 나눔).
+        //  · partial = '그 결과를 낸 엔진'의 것 — 엔진마다 비운다. 1차 파서의 '일부만 읽음'이
+        //    사이냅 전문 결과에 붙으면 안 된다.
+        //  · layout  = '문서'의 것 — 사이냅은 쪽 구성을 재지 않으므로 PDF 파서가 잰 값을 끝까지
+        //    둔다. 예전에는 사이냅 차례에 함께 지워, 사이냅이 이기거나 짧은 결과를 채택한
+        //    스캔 PDF 가 처리제외 판정을 못 받았다(설계 §2·§3).
+        let mut partial: Option<Partial> = None;
+        let mut layout: Option<Layout> = None;
         let engines: Vec<&'static str> = if has_builtin(fmt) { vec![fmt.as_str(), "snf"] } else { vec!["snf"] };
         for name in engines {
             let got: Result<String, String> = if name == "snf" {
-                notes = (None, None);
+                // partial 만 비우고 layout 은 그대로 둔다
+                partial = None;
                 crate::synap::snf_extract(snf, path, snf_secs)
             } else {
                 // 엔진마다 새 상태 — 1차 파서가 남긴 '부분 추출'이 사이냅 결과에 붙지 않게.
                 let run = Run::new(opts);
                 let r = extract_raw(path, fmt, &run).ok_or_else(|| "failed".to_string());
-                notes = run.into_notes();
+                (partial, layout) = run.into_notes();
                 r
             };
             let text = match got {
@@ -385,15 +405,20 @@ pub fn extract_as(path: &Path, fmt: Fmt, opts: &ExtractOptions) -> Result<Extrac
             } else {
                 log::info!("추출 engine={}(감지={}) file={} chars={}", name, fmt.as_str(), label, text.chars().count());
             }
-            return Ok(Extracted { text: finish(&text), engine: name, fmt, partial: notes.0, layout: notes.1 });
+            return Ok(Extracted { text: finish(&text), engine: name, fmt, partial, layout });
         }
         // 모두 짧으면 가장 긴 것 — 예전에도 짧은 채로 성공이던 문서를 실패로 바꾸지 않는다.
         if let Some((name, text)) = best_short {
             log::info!("추출 짧은결과채택 engine={} file={} chars={} reason={}",
                        name, label, text.chars().count(), reasons.join(";"));
-            return Ok(Extracted { text: finish(&text), engine: name, fmt, partial: notes.0, layout: notes.1 });
+            return Ok(Extracted { text: finish(&text), engine: name, fmt, partial, layout });
         }
-        Err(ExtractError::Failed(format!("하이브리드 전엔진 실패(감지={}; {})", fmt.as_str(), reasons.join("; "))))
+        // 전엔진 실패 — PDF 파서가 잰 쪽 구성을 실어 보낸다. 스캔 PDF 는 대개 이 갈래로 온다
+        // (pdfium 0자 · 사이냅도 0바이트). 실패는 실패로 두고, 처리제외로 가를지는 부른 쪽이 정한다.
+        Err(ExtractError::Failed {
+            reason: format!("하이브리드 전엔진 실패(감지={}; {})", fmt.as_str(), reasons.join("; ")),
+            layout,
+        })
     }
 }
 
@@ -420,7 +445,8 @@ fn extract_builtin(path: &Path, fmt: Fmt, opts: &ExtractOptions,
     let (partial, layout) = run.into_notes();
     match raw {
         Some(t) => Ok(Extracted { text: finish(&t), engine: fmt.as_str(), fmt, partial, layout }),
-        None => Err(ExtractError::Failed(String::new())),
+        // 자체 파서 단독 실패 — PDF 를 열지 못한 경우라 보통 잰 쪽이 없지만, 있으면 그대로 싣는다
+        None => Err(ExtractError::Failed { reason: String::new(), layout }),
     }
 }
 
@@ -511,7 +537,7 @@ fn extract_raw(path: &Path, fmt: Fmt, run: &Run) -> Option<String> {
         Fmt::Html => html(path),
         // 문단 인식: 문단 내 런(run)을 이어붙이고 문단 사이만 개행. Python 과 동일하게
         // 하여 런 경계로 쪼개진 값(예: 절번호 "4.2.2.2.")이 갈라져 오탐되는 것을 막는다.
-        Fmt::Docx => docx_text(path),
+        Fmt::Docx => docx_text(path, run.extra_text),
         // 슬라이드 본문 + 발표자 노트. 노트에 설계·단가 같은 기밀이 적히는 일이
         // 잦아, 본문만 읽으면 그 문서는 등급이 내려앉는다.
         Fmt::Pptx => pptx_text(path, run),
@@ -613,6 +639,8 @@ fn pdf_text(path: &Path, run: &Run) -> Option<String> {
         match page.text() {
             Ok(t) => {
                 let s = t.all();
+                // 스캔 쪽 판정은 쪽 본문만 본다 — 주석 · 서식 칸은 쪽 위에 덧붙인 것이라
+                // '그림이 쪽을 덮었나'를 바꾸면 안 된다(그래서 아래 본문 밖 글과 따로 센다).
                 if pdf_is_scan_page(&page, &s) {
                     scan_pages += 1;
                 }
@@ -625,6 +653,10 @@ fn pdf_text(path: &Path, run: &Run) -> Option<String> {
                     scan_pages += 1;
                 }
             }
+        }
+        // 본문 밖 글 — 그 쪽 본문 뒤에 붙인다(글자층을 못 열어도 주석은 따로 읽힌다)
+        if run.extra_text {
+            pdf_page_extra(&page, &mut out);
         }
         n_read += 1;
     }
@@ -640,6 +672,45 @@ fn pdf_text(path: &Path, run: &Run) -> Option<String> {
         run.set_partial(why, "pages", n_read, doc.pages().len() as usize);
     }
     Some(out)
+}
+
+//------------------------------------------------------------------
+// PDF 한 쪽의 본문 밖 글 — 글상자 주석 · 서식 칸 값
+//=> pdfium 의 글자 추출(page.text())은 쪽 본문만 읽고 주석은 읽지 않는다. 사이냅은 읽는다.
+//   그래서 화면에 보이는 두 가지를 따로 읽어 붙인다(설계 §5·§6).
+//    1) FreeText(글상자) 주석 — /Contents 글. 숨김(Hidden) 표시가 있으면 건너뛴다
+//       (사이냅은 읽지만, 안 보이는 글을 분류 근거로 쓰지 않는다)
+//    2) Widget(서식 칸) — 글 칸 · 콤보 상자의 값. 빈 값 · 체크 상자 · 단추는 건너뛴다
+//   쪽지(Text) · Popup · Stamp 등 그 밖의 주석은 읽지 않는다(접힌 검토 의견 · 그림).
+//   주석마다 한 줄씩, 주석 차례대로 붙인다. 앞에 표식을 달지 않는다(사이냅과 같은 모양).
+//
+// -in: page = pdfium 페이지
+// -in: out  = 본문(제자리에서 늘어난다)
+//
+// -out: 없음
+// -out: error = 없음(못 읽는 주석은 건너뛴다)
+//------------------------------------------------------------------
+fn pdf_page_extra(page: &pdfium_render::prelude::PdfPage, out: &mut String) {
+    use pdfium_render::prelude::*;
+    for annot in page.annotations().iter() {
+        let text = match annot.annotation_type() {
+            PdfPageAnnotationType::FreeText if !annot.is_hidden() => annot.contents(),
+            PdfPageAnnotationType::Widget if !annot.is_hidden() => annot
+                .as_widget_annotation()
+                .and_then(|w| w.form_field())
+                .and_then(|f| match f {
+                    PdfFormField::Text(t) => t.value(),
+                    PdfFormField::ComboBox(c) => c.value(),
+                    _ => None,
+                }),
+            _ => None,
+        };
+        // 빈 글은 줄만 늘리므로 건너뛴다
+        if let Some(t) = text.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) {
+            out.push_str(&t);
+            out.push('\n');
+        }
+    }
 }
 
 // ── 스캔 PDF 처리제외(EXCLUDED) 판정 — 1차 개발 범위: OCR 미적용 ──
@@ -950,12 +1021,19 @@ fn collect_field_links(xml: &str, out: &mut String) {
 //   [각주·미주는 왜 안 넣나] 45개 파일에 있었지만 추가로 잡히는 PII 가 0건이었다.
 //   읽는 만큼 오탐 여지만 늘어 일부러 뺐다. 필요해지면 아래 목록에 이름만 더하면 된다.
 //
-// -in: path = docx 경로
+//   [본문 밖 글(extra_text)] 사이냅이 읽는 두 자리를 본문 뒤 · 머리말 앞에 붙인다
+//   (사이냅 출력과 같은 차례: 본문 → 메모 → 머리말 → 꼬리말).
+//    · SmartArt 글 — word/diagrams/dataN.xml (본문 관계의 diagramData 로 찾는다)
+//    · 메모(comment) — word/comments.xml
+//   설계: plan/PDF-layout보존-본문밖글읽기-설계-20261118.html §6
 //
-// -out: 본문 다음에 머리말·꼬리말을 이어 붙인 텍스트
+// -in: path       = docx 경로
+// -in: extra_text = 본문 밖 글(SmartArt · 메모)도 읽을지
+//
+// -out: 본문 다음에 (SmartArt · 메모 ·) 머리말·꼬리말을 이어 붙인 텍스트
 // -out: error = zip 이 아니거나 못 열면 None
 //------------------------------------------------------------------
-fn docx_text(path: &Path) -> Option<String> {
+fn docx_text(path: &Path, extra_text: bool) -> Option<String> {
     let file = fs::File::open(path).ok()?;
     let mut zip = zip::ZipArchive::new(file).ok()?;
 
@@ -981,6 +1059,14 @@ fn docx_text(path: &Path) -> Option<String> {
         if f.read_to_string(&mut data).is_ok() {
             collect_docx_paragraphs(&data, &mut out);
             collect_field_links(&data, &mut links);
+        }
+    }
+    if extra_text {
+        // SmartArt 는 본문 안 그림 자리에 있으므로 본문 바로 뒤에
+        ooxml_diagram_text(&mut zip, "word/document.xml", &mut out);
+        // 메모는 문단 구조가 본문과 같다 — 같은 수집기로 읽는다
+        if let Some(data) = zip_read(&mut zip, "word/comments.xml") {
+            collect_docx_paragraphs(&data, &mut out);
         }
     }
     for name in &extras {
@@ -1027,8 +1113,14 @@ fn docx_text(path: &Path) -> Option<String> {
 // -out: error = zip 이 아니거나 못 열면 None (노트가 없으면 본문만)
 //------------------------------------------------------------------
 fn pptx_text(path: &Path, run: &Run) -> Option<String> {
-    let mut out = for_prefix(path, "ppt/slides/slide",
-                             |d, o| collect_paragraphs(d, "a:p", "a:t", o), run)?;
+    // 슬라이드마다 본문, 이어서 (extra_text 면) 그 슬라이드의 SmartArt 글.
+    // SmartArt 글은 슬라이드 XML 이 아니라 관계로 이어진 ppt/diagrams/dataN.xml 에 있다.
+    let mut out = for_prefix_zip(path, "ppt/slides/slide", |zip, name, d, o| {
+        collect_paragraphs(d, "a:p", "a:t", o);
+        if run.extra_text {
+            ooxml_diagram_text(zip, name, o);
+        }
+    }, run)?;
     // 노트는 없는 문서가 더 많다 — 없으면 조용히 본문만 돌려준다.
     if let Some(notes) = for_prefix(path, "ppt/notesSlides/notesSlide",
                                     |d, o| collect_paragraphs(d, "a:p", "a:t", o), run) {
@@ -1055,6 +1147,26 @@ fn pptx_text(path: &Path, run: &Run) -> Option<String> {
 //------------------------------------------------------------------
 /// 접두 매칭 항목을 번호순으로 읽어 콜백에 넘긴다(공통).
 fn for_prefix<F: Fn(&str, &mut String)>(path: &Path, prefix: &str, f: F, run: &Run) -> Option<String> {
+    for_prefix_zip(path, prefix, |_, _, d, o| f(d, o), run)
+}
+
+//------------------------------------------------------------------
+// for_prefix 의 넓은 판 — 콜백이 zip 과 항목 이름도 받는다
+//=> 항목 하나를 읽은 뒤 그 항목의 관계(rels)를 따라 다른 부품(SmartArt 등)을 더 읽어야
+//   할 때 쓴다. 상한 · 차례 규칙은 for_prefix 와 같다.
+//
+// -in: path   = zip 계열 문서 경로
+// -in: prefix = 읽을 항목 이름 접두
+// -in: f      = (zip, 항목 이름, 항목 XML, 본문) 을 받는 수집기
+// -in: run    = 이번 추출의 상한·표식 자리
+//
+// -out: Option<String> = 이어 붙인 텍스트
+// -out: error = zip 이 아니거나 못 열면 None
+//------------------------------------------------------------------
+fn for_prefix_zip<F>(path: &Path, prefix: &str, mut f: F, run: &Run) -> Option<String>
+where
+    F: FnMut(&mut zip::ZipArchive<fs::File>, &str, &str, &mut String),
+{
     let file = fs::File::open(path).ok()?;
     let mut zip = zip::ZipArchive::new(file).ok()?;
     let mut names: Vec<String> = Vec::new();
@@ -1079,14 +1191,120 @@ fn for_prefix<F: Fn(&str, &mut String)>(path: &Path, prefix: &str, f: F, run: &R
             run.set_partial("시간 상한".to_string(), "parts", n_done, n_total);
             break;
         }
-        if let Ok(mut zf) = zip.by_name(&name) {
-            let mut data = String::new();
-            if zf.read_to_string(&mut data).is_ok() {
-                f(&data, &mut out);
-            }
+        // 항목을 다 읽어 zip 빌림을 놓은 뒤 콜백에 넘긴다 — 콜백이 zip 을 다시 쓸 수 있게
+        if let Some(data) = zip_read(&mut zip, &name) {
+            f(&mut zip, &name, &data, &mut out);
         }
     }
     Some(out)
+}
+
+//------------------------------------------------------------------
+// zip 항목 하나를 글로 읽기
+//
+// -in: zip  = 열린 zip
+// -in: name = 항목 이름
+//
+// -out: Option<String> = 항목 내용(UTF-8)
+// -out: error = 없거나 UTF-8 이 아니면 None
+//------------------------------------------------------------------
+fn zip_read(zip: &mut zip::ZipArchive<fs::File>, name: &str) -> Option<String> {
+    let mut zf = zip.by_name(name).ok()?;
+    let mut data = String::new();
+    zf.read_to_string(&mut data).ok()?;
+    Some(data)
+}
+
+//------------------------------------------------------------------
+// OOXML 부품의 관계(rels)에서 특정 종류의 대상 부품 이름 찾기
+//=> "word/document.xml" 의 관계는 "word/_rels/document.xml.rels" 에 있다. 그 안의
+//   <Relationship Type=".../diagramData" Target="diagrams/data1.xml"/> 처럼 종류가 맞는
+//   것의 Target 을 zip 안 이름("word/diagrams/data1.xml")으로 바꿔 돌려준다.
+//    1) 바깥 링크(TargetMode="External")는 건너뛴다
+//    2) Target 이 '/' 로 시작하면 zip 뿌리 기준, 아니면 부품 폴더 기준(".." 처리)
+//
+// -in: zip      = 열린 zip
+// -in: part     = 기준 부품 이름
+// -in: rel_type = 관계 종류 끝 이름("diagramData" 등)
+//
+// -out: Vec<String> = 대상 부품 이름들(관계 파일에 적힌 차례)
+// -out: error = 없음(관계 파일이 없으면 빈 목록)
+//------------------------------------------------------------------
+fn part_rel_targets(zip: &mut zip::ZipArchive<fs::File>, part: &str, rel_type: &str) -> Vec<String> {
+    static REL: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?s)<Relationship\b([^>]*?)/?>").unwrap());
+    static ATTR: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(\w+)\s*=\s*"([^"]*)""#).unwrap());
+    let (dir, file) = match part.rfind('/') {
+        Some(i) => (&part[..i], &part[i + 1..]),
+        None => ("", part),
+    };
+    let rels_name = if dir.is_empty() { format!("_rels/{}.rels", file) } else { format!("{}/_rels/{}.rels", dir, file) };
+    let Some(xml) = zip_read(zip, &rels_name) else { return Vec::new() };
+    let mut out = Vec::new();
+    for cap in REL.captures_iter(&xml) {
+        let (mut ty, mut target, mut external) = ("", "", false);
+        for a in ATTR.captures_iter(&cap[1]) {
+            match a.get(1).map(|m| m.as_str()) {
+                Some("Type") => ty = a.get(2).map_or("", |m| m.as_str()),
+                Some("Target") => target = a.get(2).map_or("", |m| m.as_str()),
+                Some("TargetMode") => external = a.get(2).map_or(false, |m| m.as_str() == "External"),
+                _ => {}
+            }
+        }
+        // 종류 이름은 URI 의 마지막 조각으로 견준다(네임스페이스 판이 달라도 맞게)
+        if external || target.is_empty() || ty.rsplit('/').next() != Some(rel_type) {
+            continue;
+        }
+        out.push(resolve_part(dir, target));
+    }
+    out
+}
+
+//------------------------------------------------------------------
+// 관계 Target → zip 안 이름
+//
+// -in: dir    = 기준 부품의 폴더("ppt/slides")
+// -in: target = 관계의 Target("../diagrams/data1.xml" · "/word/x.xml")
+//
+// -out: String = zip 안 이름("ppt/diagrams/data1.xml")
+// -out: error = 없음
+//------------------------------------------------------------------
+fn resolve_part(dir: &str, target: &str) -> String {
+    let mut parts: Vec<&str> = if target.starts_with('/') {
+        Vec::new()
+    } else {
+        dir.split('/').filter(|s| !s.is_empty()).collect()
+    };
+    for seg in target.trim_start_matches('/').split('/') {
+        match seg {
+            "" | "." => {}
+            // 한 단계 위로 — 뿌리 밖으로는 나가지 않는다
+            ".." => { parts.pop(); }
+            s => parts.push(s),
+        }
+    }
+    parts.join("/")
+}
+
+//------------------------------------------------------------------
+// 부품에 이어진 SmartArt 글 뽑기 (docx · pptx 공통)
+//=> SmartArt 의 글은 본문 XML 이 아니라 관계(diagramData)로 이어진 dataN.xml 의
+//   <dgm:pt><dgm:t><a:p><a:r><a:t> 에 있다. 같은 글이 그려진 drawingN.xml(겉모양 캐시)은
+//   읽지 않는다 — 두 번 나오지 않게. 문단마다 한 줄(빈 문단은 건너뜀).
+//
+// -in: zip  = 열린 zip
+// -in: part = SmartArt 를 품은 부품("ppt/slides/slide3.xml" · "word/document.xml")
+// -in: out  = 본문(제자리에서 늘어난다)
+//
+// -out: 없음
+// -out: error = 없음(못 읽는 부품은 건너뛴다)
+//------------------------------------------------------------------
+fn ooxml_diagram_text(zip: &mut zip::ZipArchive<fs::File>, part: &str, out: &mut String) {
+    for name in part_rel_targets(zip, part, "diagramData") {
+        if let Some(data) = zip_read(zip, &name) {
+            if !out.is_empty() && !out.ends_with('\n') { out.push('\n'); }
+            collect_paragraphs(&data, "a:p", "a:t", out);
+        }
+    }
 }
 
 /// docx 전용 문단 수집 — 파이썬 `DocxExtractor._collect_paragraphs` 와 짝이다.
@@ -2246,6 +2464,182 @@ mod tests {
         let _ = xml_inner_text("<t><![CDATA[끝나지 않음");
         let _ = xml_inner_text("]]>혼자 있는 종료");
         let _ = xml_inner_text("");
+    }
+}
+
+//------------------------------------------------------------------
+// 시험: 페이지 구성 보존(A · B)과 본문 밖 글(C)
+//=> 설계: plan/PDF-layout보존-본문밖글읽기-설계-20261118.html §8
+//   시험 문서는 tests/samples/ 의 지어낸 파일(tools/make_samples.py)을 쓴다.
+//   사이냅은 '가짜 snf' 스크립트로 흉내 낸다 — 넷째 인자(출력 파일)에 글을 쓰거나 / 비우거나 / 실패.
+//------------------------------------------------------------------
+#[cfg(all(test, feature = "synap"))]
+mod extra_layout_tests {
+    use super::*;
+
+    // 저장소의 시험 문서 경로
+    fn sample(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/samples").join(name)
+    }
+
+    // 저장소에 든 pdfium — 시험 실행 파일 옆에는 없으므로 직접 가리킨다
+    fn pdfium() -> Option<PathBuf> {
+        let rel = if cfg!(windows) { "windows-x64/pdfium.dll" } else { "linux-x64/libpdfium.so" };
+        Some(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../third_party/pdfium").join(rel))
+    }
+
+    //------------------------------------------------------------------
+    // 시험용 옵션 만들기
+    //
+    // -in: engine     = 추출 엔진
+    // -in: extra_text = 본문 밖 글을 읽을지
+    //
+    // -out: ExtractOptions = 정제 끔(원시 텍스트로 비교) · 저장소 pdfium
+    // -out: error = 없음
+    //------------------------------------------------------------------
+    fn opts(engine: Engine, extra_text: bool) -> ExtractOptions {
+        ExtractOptions { engine, pdfium_lib: pdfium(), clean: false, extra_text, ..ExtractOptions::default() }
+    }
+
+    //------------------------------------------------------------------
+    // 가짜 snf 만들기
+    //=> snf 호출 모양(-U8 -NO_WITHPAGE 입력 출력)대로 넷째 인자 파일을 다룬다.
+    //    · "ok"    = 충분히 긴 글을 쓴다
+    //    · "empty" = 0바이트 파일을 만든다
+    //    · "fail"  = 아무것도 안 쓰고 실패 코드로 끝난다
+    //
+    // -in: kind = "ok" | "empty" | "fail"
+    //
+    // -out: PathBuf = 실행할 스크립트 경로(종류마다 다른 임시 폴더)
+    // -out: error = 임시 폴더를 못 쓰면 panic(시험 실패)
+    //------------------------------------------------------------------
+    fn fake_snf(kind: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("dp_fake_snf_{}_{}", std::process::id(), kind));
+        fs::create_dir_all(&dir).unwrap();
+        let body = "synap read this whole document text, long enough to pass the minimum length";
+        if cfg!(windows) {
+            let p = dir.join("snf.cmd");
+            let cmd = match kind {
+                "ok" => format!("@echo off\r\n> \"%~4\" echo {}\r\n", body),
+                "empty" => "@echo off\r\ntype nul > \"%~4\"\r\n".to_string(),
+                _ => "@echo off\r\nexit /b 3\r\n".to_string(),
+            };
+            fs::write(&p, cmd).unwrap();
+            p
+        } else {
+            let p = dir.join("snf.sh");
+            let sh = match kind {
+                "ok" => format!("#!/bin/sh\necho \"{}\" > \"$4\"\n", body),
+                "empty" => "#!/bin/sh\n: > \"$4\"\n".to_string(),
+                _ => "#!/bin/sh\nexit 3\n".to_string(),
+            };
+            fs::write(&p, sh).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&p, fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            p
+        }
+    }
+
+    // A: 사이냅이 이겨도 PDF 파서가 잰 쪽 구성이 남는다(partial 은 비운다)
+    #[test]
+    fn 사이냅이_이겨도_layout_유지() {
+        let o = opts(Engine::SynapFallback(fake_snf("ok")), true);
+        let x = extract(&sample("스캔_예시.pdf"), &o).unwrap();
+        assert_eq!(x.engine, "snf");
+        assert_eq!(x.layout, Some(Layout { pages: 2, scan_pages: 2 }));
+        assert_eq!(x.partial, None);
+    }
+
+    // A: 둘 다 짧아 PDF 결과를 채택해도 layout 이 남는다(2.pdf 꼴)
+    #[test]
+    fn 짧은_결과_채택에도_layout_유지() {
+        let mut o = opts(Engine::SynapFallback(fake_snf("fail")), true);
+        // 기준 글자 수를 크게 잡아 PDF 결과(주석 글 몇 줄)를 '짧은 결과'로 만든다
+        o.limits.min_text_len = 10_000;
+        let x = extract(&sample("주석_예시.pdf"), &o).unwrap();
+        assert_eq!(x.engine, "pdf");
+        assert_eq!(x.layout, Some(Layout { pages: 3, scan_pages: 3 }));
+    }
+
+    // B: 전엔진 실패에도 layout 을 싣는다(사이냅이 빈 결과 · 실패 두 경우)
+    #[test]
+    fn 전엔진_실패에_layout() {
+        for kind in ["empty", "fail"] {
+            let o = opts(Engine::SynapFallback(fake_snf(kind)), true);
+            match extract(&sample("스캔_예시.pdf"), &o) {
+                Err(ExtractError::Failed { layout, reason }) => {
+                    assert_eq!(layout, Some(Layout { pages: 2, scan_pages: 2 }), "{}", kind);
+                    assert!(reason.contains("하이브리드 전엔진 실패"), "{}", reason);
+                }
+                other => panic!("{}: 실패여야 한다 — {:?}", kind, other.map(|x| x.engine)),
+            }
+        }
+    }
+
+    // B: 사이냅만 모드 실패는 PDF 파서를 안 돌리므로 layout 이 없다
+    #[test]
+    fn 사이냅만_실패는_layout_없음() {
+        let o = opts(Engine::SynapOnly(fake_snf("fail")), true);
+        match extract(&sample("스캔_예시.pdf"), &o) {
+            Err(ExtractError::Failed { layout, .. }) => assert_eq!(layout, None),
+            other => panic!("실패여야 한다 — {:?}", other.map(|x| x.engine)),
+        }
+    }
+
+    // C(PDF): 글상자 · 서식 칸은 읽고, 숨긴 글상자 · 쪽지 · 체크 상자는 안 읽는다. 쪽 판정은 그대로
+    #[test]
+    fn pdf_본문밖_글() {
+        let on = extract(&sample("주석_예시.pdf"), &opts(Engine::Builtin, true)).unwrap();
+        for want in ["(2026년 시험기관 자료)", "주석으로 덧붙인 설명 글", "서식 칸에 적은 값"] {
+            assert!(on.text.contains(want), "{} 가 없다: {:?}", want, on.text);
+        }
+        for not in ["숨긴 글상자", "쪽지 주석"] {
+            assert!(!on.text.contains(not), "{} 가 나오면 안 된다: {:?}", not, on.text);
+        }
+        let off = extract(&sample("주석_예시.pdf"), &opts(Engine::Builtin, false)).unwrap();
+        assert!(off.text.trim().is_empty(), "끄면 쪽 본문(0자)만: {:?}", off.text);
+        // 주석은 스캔 쪽 판정에 끼지 않는다
+        assert_eq!(on.layout, off.layout);
+        assert_eq!(on.layout, Some(Layout { pages: 3, scan_pages: 3 }));
+    }
+
+    // C(docx): 메모는 본문 뒤 · 머리말 앞, 끄면 안 나온다
+    #[test]
+    fn docx_메모() {
+        let on = extract(&sample("메모_예시.docx"), &opts(Engine::Builtin, true)).unwrap().text;
+        let memo = on.find("검토 메모: 수치 출처를 적을 것").expect("메모가 없다");
+        assert!(on.find("둘째 문단은 메모가 없다.").unwrap() < memo, "메모는 본문 뒤: {:?}", on);
+        assert!(memo < on.find("메모 시험 문서 머리글").unwrap(), "메모는 머리말 앞: {:?}", on);
+        let off = extract(&sample("메모_예시.docx"), &opts(Engine::Builtin, false)).unwrap().text;
+        assert!(!off.contains("검토 메모: 수치"), "{:?}", off);
+    }
+
+    // C(pptx · docx): SmartArt 글은 한 번씩만(drawing 캐시와 겹치지 않게), 제자리에, 끄면 안 나온다
+    #[test]
+    fn smartart() {
+        let p = extract(&sample("SmartArt_예시.pptx"), &opts(Engine::Builtin, true)).unwrap().text;
+        assert_eq!(p.matches("기획 단계").count(), 1, "{:?}", p);
+        let (title, step, next) = (p.find("업무 흐름").unwrap(), p.find("운영 단계").unwrap(), p.find("맺음말").unwrap());
+        assert!(title < step && step < next, "그 슬라이드 글 뒤 · 다음 슬라이드 앞: {:?}", p);
+        assert!(p.contains("발표자 노트"), "노트는 그대로 읽는다: {:?}", p);
+        let d = extract(&sample("SmartArt_예시.docx"), &opts(Engine::Builtin, true)).unwrap().text;
+        assert_eq!(d.matches("개발 단계").count(), 1, "{:?}", d);
+        for f in ["SmartArt_예시.pptx", "SmartArt_예시.docx"] {
+            let off = extract(&sample(f), &opts(Engine::Builtin, false)).unwrap().text;
+            assert!(!off.contains("기획 단계"), "{}: {:?}", f, off);
+        }
+    }
+
+    // 관계 Target → zip 안 이름
+    #[test]
+    fn 관계_경로_풀기() {
+        assert_eq!(resolve_part("ppt/slides", "../diagrams/data1.xml"), "ppt/diagrams/data1.xml");
+        assert_eq!(resolve_part("word", "diagrams/data1.xml"), "word/diagrams/data1.xml");
+        assert_eq!(resolve_part("word", "/word/x.xml"), "word/x.xml");
+        assert_eq!(resolve_part("a", "../../x.xml"), "x.xml");
     }
 }
 

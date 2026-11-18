@@ -31,7 +31,7 @@ dp — docparse 시험 도구
 사용법:
   dp version
   dp detect  <파일...>
-  dp extract <파일> [--json] [--raw] [--fmt F] [--engine E] [--synap-exe 경로]
+  dp extract <파일> [--json] [--raw] [--no-extra-text] [--fmt F] [--engine E] [--synap-exe 경로]
                     [--pdfium 경로] [--limit 키=값]... [--out 파일]
   dp check   <파일> [--fmt F] [--limit 키=값]...
   dp expand  <압축...> --tmp <폴더> [--max-depth N] [--max-bytes N] [--max-members N]
@@ -50,6 +50,7 @@ dp — docparse 시험 도구
 // -필드: args      = 옵션을 뺀 위치 인자
 // -필드: json      = 결과 JSON 전체를 낸다(extract)
 // -필드: raw       = 정제하지 않은 원시 텍스트(clean=false)
+// -필드: no_extra  = 본문 밖 글(PDF 주석 · 서식 칸, docx 메모, SmartArt)을 읽지 않음(extra_text=false)
 // -필드: fmt       = 감지를 건너뛰고 이 형식으로
 // -필드: engine    = builtin | synap_fallback | synap_only
 // -필드: synap_exe = 사이냅 snf_exe 경로
@@ -65,6 +66,7 @@ struct Cli {
     args: Vec<String>,
     json: bool,
     raw: bool,
+    no_extra: bool,
     fmt: Option<String>,
     engine: Option<String>,
     synap_exe: Option<String>,
@@ -99,6 +101,7 @@ fn parse_cli(v: Vec<String>) -> Cli {
         match a.as_str() {
             "--json" => c.json = true,
             "--raw" => c.raw = true,
+            "--no-extra-text" => c.no_extra = true,
             "--fmt" => c.fmt = Some(val("--fmt")),
             "--engine" => c.engine = Some(val("--engine")),
             "--synap-exe" => c.synap_exe = Some(val("--synap-exe")),
@@ -200,6 +203,10 @@ fn extract_opts(c: &Cli) -> Value {
     if c.raw {
         o.insert("clean".into(), json!(false));
     }
+    // 본문 밖 글은 라이브러리 기본이 '읽음'이라 끌 때만 보낸다
+    if c.no_extra {
+        o.insert("extra_text".into(), json!(false));
+    }
     for (k, v) in [("engine", &c.engine), ("synap_exe", &c.synap_exe), ("pdfium_lib", &c.pdfium), ("fmt", &c.fmt)] {
         if let Some(v) = v {
             o.insert(k.into(), json!(v));
@@ -227,6 +234,29 @@ fn extract_one(path: &str, opts: &Value) -> (c_int, Value, f64) {
     let rc = ffi::docparse_extract(p.as_ptr(), o.as_ptr(), &mut out);
     let ms = t0.elapsed().as_secs_f64() * 1000.0;
     (rc, to_json(&take(out)), ms)
+}
+
+//------------------------------------------------------------------
+// 쪽 구성 · 스캔 PDF 판정 꼬리말
+//=> 결과(또는 오류) JSON 에 layout 이 있으면 " layout={…}" 와, 스캔 PDF 면
+//   " 판정=스캔PDF(처리제외)" 를 만든다. 실패는 본문이 없으니 body=0 으로 판정한다
+//   (부르는 쪽 · Python 판의 실패 갈래와 같은 식).
+//
+// -in: v    = layout 키를 가진 JSON 객체(성공 결과 또는 error 객체)
+// -in: body = 공백을 뺀 본문 글자 수
+//
+// -out: String = 꼬리말(layout 이 없으면 빈 문자열)
+// -out: error = 없음
+//------------------------------------------------------------------
+fn layout_note(v: &Value, body: u64) -> String {
+    let Some(l) = v.get("layout").filter(|l| !l.is_null()) else { return String::new() };
+    let pages = l["pages"].as_u64().unwrap_or(0);
+    let scan = l["scan_pages"].as_u64().unwrap_or(0);
+    let mut s = format!(" layout={}", l);
+    if ffi::docparse_scan_pdf_verdict(pages, scan, body) == 1 {
+        s.push_str(" 판정=스캔PDF(처리제외)");
+    }
+    s
 }
 
 // 결과 JSON 의 오류문
@@ -333,7 +363,7 @@ fn cmd_extract(c: &Cli) -> i32 {
             5 if err_msg(&v).is_empty() => "(사유 없음 — 깨진 파일 · 암호 문서이거나, PDF 면 pdfium 을 찾지 못한 것: --log debug · --pdfium 확인)".into(),
             _ => String::new(),
         };
-        eprintln!("실패({} {}): {}{}", rc, status_name(rc), err_msg(&v), hint);
+        eprintln!("실패({} {}): {}{}{}", rc, status_name(rc), err_msg(&v), hint, layout_note(&v["error"], 0));
         return rc;
     }
     let text = v["text"].as_str().unwrap_or("");
@@ -345,16 +375,9 @@ fn cmd_extract(c: &Cli) -> i32 {
     if let Some(p) = v.get("partial").filter(|p| !p.is_null()) {
         extra.push_str(&format!(" partial={}", p));
     }
-    if let Some(l) = v.get("layout").filter(|l| !l.is_null()) {
-        extra.push_str(&format!(" layout={}", l));
-        // PDF 면 부르는 쪽이 하는 '스캔 PDF 처리제외' 판정도 같은 함수로 해 보여 준다
-        let body = text.chars().filter(|ch| !ch.is_whitespace()).count() as u64;
-        let pages = l["pages"].as_u64().unwrap_or(0);
-        let scan = l["scan_pages"].as_u64().unwrap_or(0);
-        if ffi::docparse_scan_pdf_verdict(pages, scan, body) == 1 {
-            extra.push_str(" 판정=스캔PDF(처리제외)");
-        }
-    }
+    // PDF 면 부르는 쪽이 하는 '스캔 PDF 처리제외' 판정도 같은 함수로 해 보여 준다
+    let body = text.chars().filter(|ch| !ch.is_whitespace()).count() as u64;
+    extra.push_str(&layout_note(&v, body));
     eprintln!("[dp] fmt={} engine={} chars={} {:.0}ms{}",
               v["fmt"].as_str().unwrap_or("?"), v["engine"].as_str().unwrap_or("?"), chars(text), ms, extra);
     0
@@ -526,6 +549,10 @@ fn cmd_dump(c: &Cli) -> i32 {
             eprintln!("[{}/{}] {:>6.0}ms {:<5} {}", i + 1, paths.len(), ms, v["fmt"].as_str().unwrap_or("?"), basename(p));
         } else {
             row["err"] = json!(err_msg(&v));
+            // 실패에도 PDF 쪽 구성이 오면 남긴다 — 처리제외(스캔 PDF)로 가를 재료
+            if let Some(l) = v.pointer("/error/layout") {
+                row["layout"] = l.clone();
+            }
             fail += 1;
             eprintln!("[{}/{}] {:>6.0}ms 실패({}) {} — {}", i + 1, paths.len(), ms, rc, basename(p), err_msg(&v));
         }
