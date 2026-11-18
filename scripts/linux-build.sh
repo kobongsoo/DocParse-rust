@@ -69,7 +69,8 @@ if [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then HAS
 VERSION="$VER_CRATE+$HASH"
 
 step "소스 올리기 ($VERSION)"
-tar -czf "$TMP/dpsrc.tgz" Cargo.toml Cargo.lock crates || die "소스를 묶지 못했습니다"
+# 시험(cargo test)이 저장소의 시험 문서와 pdfium 을 쓰므로 함께 올린다(0.2.0~)
+tar -czf "$TMP/dpsrc.tgz" Cargo.toml Cargo.lock crates tests/samples third_party/pdfium/linux-x64 || die "소스를 묶지 못했습니다"
 plink -batch -ssh -l "$USER_ID" -pw "$PW" "$HOST" "mkdir -p $DP_BUILD_DIR" || die "빌드 폴더를 만들지 못했습니다"
 pscp -batch -q -pw "$PW" "$TMP/dpsrc.tgz" "$USER_ID@$HOST:$DP_BUILD_DIR/" || die "소스 전송 실패"
 
@@ -79,7 +80,7 @@ set -e
 export PATH="$CARGO_BIN_DIR:\$PATH"
 export DOCPARSE_GIT="$HASH"
 cd "$DP_BUILD_DIR"
-rm -rf crates Cargo.toml Cargo.lock
+rm -rf crates tests third_party Cargo.toml Cargo.lock
 tar xzf dpsrc.tgz
 cargo test --workspace > test.log 2>&1 || { tail -30 test.log; echo "cargo test 실패 — $DP_BUILD_DIR/test.log"; exit 1; }
 cargo build --release -p docparse-ffi -p docparse-cli > build.log 2>&1 || { tail -30 build.log; echo "cargo build 실패 — $DP_BUILD_DIR/build.log"; exit 1; }
